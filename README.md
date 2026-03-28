@@ -1,71 +1,58 @@
-# intellegode README
+# Intellegode
 
-This is the README for your extension "intellegode". After writing up a brief description, we recommend including the following sections.
+> Fight vibe coding. Understand your own code.
 
-## Features
+Intellegode is a VS Code extension that uses a local LLM to quiz you on code you just wrote or AI-generated — making sure you actually understand it before moving on. Fully local, no cloud, no subscriptions.
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+## How it works
 
-For example if there is an image subfolder under your extension project workspace:
+1. Highlight a block of code in your editor
+2. Trigger Intellegode (`Ctrl+Shift+P` → "Intellegode: Quiz Me")
+3. Answer the comprehension question in the sidebar
+4. Find out if you actually get it
 
-\!\[feature X\]\(images/feature-x.png\)
+## Prerequisites
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- [Node.js](https://nodejs.org/) v18+
+- [Docker](https://www.docker.com/) (for Ollama)
+- [VS Code](https://code.visualstudio.com/) v1.74+
 
-## Requirements
+## Setup
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+**1. Clone the repo**
+```bash
+git clone <repo-url>
+cd intellegode
+```
 
-## Extension Settings
+**2. Start Ollama**
+```bash
+docker-compose up -d
+```
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+**3. Pull the model**
+```bash
+docker exec intellegode-ollama ollama pull qwen2.5:3b
+```
 
-For example:
+**4. Install dependencies**
+```bash
+npm install
+```
 
-This extension contributes the following settings:
+**5. Run the extension**
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+Press `F5` in VS Code to launch the Extension Development Host.
 
-## Known Issues
+## Tech Stack
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+- VS Code Extension API (TypeScript)
+- Ollama (local LLM runtime via Docker)
+- Qwen2.5 3B (code comprehension model)
 
-## Release Notes
+## Roadmap
 
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+- [ ] v1 — Quizzer (highlight → question → answer)
+- [ ] v2 — Concept Debt Tracker
+- [ ] v3 — Ownership Map
+- [ ] v4 — Reconstruction Challenges
