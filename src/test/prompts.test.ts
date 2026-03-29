@@ -22,5 +22,8 @@ suite('Prompt Builders', () => {
 		assert.ok(prompt.includes('"[PARTIAL]"'));
 		assert.ok(prompt.includes('"[MISS]"'));
 		assert.ok(prompt.includes('Returning only [PASS], [PARTIAL], or [MISS] with no explanation is not allowed.'));
+		assert.ok(prompt.includes('compare the learner answer against the actual code provided'));
+		assert.ok(prompt.includes('If the user\'s answer contains the correct function name or key term and a reasonable description, always return [PASS].'));
+		assert.ok(prompt.includes('never use generic advice like "try again" or "refine your explanation"'));
 	});
 });
