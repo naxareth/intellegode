@@ -6,7 +6,7 @@ const DEFAULT_OLLAMA_MODEL = 'qwen2.5:3b';
 export async function callOllama(
 	prompt: string,
 	model: string = DEFAULT_OLLAMA_MODEL,
-	maxTokens: number = 120,
+	maxTokens: number = 300,
 	timeoutMs: number = 20000
 ): Promise<string> {
 	const controller = new AbortController();

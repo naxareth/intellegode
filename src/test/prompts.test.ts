@@ -19,7 +19,7 @@ suite('Prompt Builders', () => {
 	test('buildEvaluatePrompt requests explanation-only output', () => {
 		const prompt = buildEvaluatePrompt('code', 'question', 'answer');
 		assert.ok(prompt.includes('Do not grade the user answer'));
-		assert.ok(prompt.includes('Write a clear explanation in 2-3 concise sentences.'));
+		assert.ok(prompt.includes('Write exactly 2 concise sentences.'));
 		assert.ok(prompt.includes('Avoid unrelated domains'));
 		assert.ok(prompt.includes('Correct explanation:'));
 	});

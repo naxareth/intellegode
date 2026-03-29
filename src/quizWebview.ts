@@ -318,21 +318,6 @@ export function getQuizWebviewHtml(question: string): string {
       display: block;
     }
 
-    .debug-log {
-      margin-top: 12px;
-      padding: 10px;
-      border: 1px dashed rgba(255,255,255,0.2);
-      border-radius: 8px;
-      background: rgba(255,255,255,0.02);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      line-height: 1.4;
-      opacity: 0.8;
-      max-height: 120px;
-      overflow: auto;
-      white-space: pre-wrap;
-    }
-
     @keyframes slideIn {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
@@ -390,20 +375,8 @@ export function getQuizWebviewHtml(question: string): string {
     <div class="self-grade-status" id="selfGradeStatus"></div>
   </div>
   <div class="result-box" id="result"></div>
-  <div class="debug-log" id="debugLog">[Intellegode] UI booting...</div>
 
   <script>
-    var debugLog = document.getElementById('debugLog');
-
-    function addDebugLog(message) {
-      if (!debugLog) {
-        return;
-      }
-      var ts = new Date().toLocaleTimeString();
-      var next = '[' + ts + '] ' + message;
-      debugLog.textContent = next + '\\n' + debugLog.textContent;
-    }
-
     function safeScrollIntoView(el) {
       if (!el || typeof el.scrollIntoView !== 'function') {
         return;
@@ -419,18 +392,11 @@ export function getQuizWebviewHtml(question: string): string {
     if (typeof acquireVsCodeApi === 'function') {
       vscode = acquireVsCodeApi();
     }
-    if (!vscode) {
-      addDebugLog('acquireVsCodeApi unavailable; webview bridge not initialized.');
-    } else {
-      addDebugLog('Webview bridge initialized.');
-    }
 
     function postToExtension(message) {
-      if (!vscode) {
-        addDebugLog('Cannot post message (no VS Code bridge): ' + JSON.stringify(message));
+      if (!vscode || typeof vscode.postMessage !== 'function') {
         return;
       }
-      addDebugLog('Sent: ' + message.command);
       vscode.postMessage(message);
     }
 
@@ -452,13 +418,8 @@ export function getQuizWebviewHtml(question: string): string {
     var gotItBtn = document.getElementById('gotItBtn');
     var missedItBtn = document.getElementById('missedItBtn');
 
-    if (!submitBtn || !hintBtn || !newQuestionBtn || !resetBtn || !answerInput) {
-      addDebugLog('Critical UI elements are missing; buttons may not respond.');
-    }
-
     if (submitBtn) {
       submitBtn.addEventListener('click', function () {
-        addDebugLog('Click: submit');
         if (reviewBox) reviewBox.classList.remove('visible');
         if (selfGradeActions) selfGradeActions.classList.remove('visible');
         if (result) {
@@ -473,42 +434,36 @@ export function getQuizWebviewHtml(question: string): string {
 
     if (hintBtn) {
       hintBtn.addEventListener('click', function () {
-        addDebugLog('Click: requestHint');
         postToExtension({ command: 'requestHint' });
       });
     }
 
     if (newQuestionBtn) {
       newQuestionBtn.addEventListener('click', function () {
-        addDebugLog('Click: newQuestion');
         postToExtension({ command: 'newQuestion' });
       });
     }
 
     if (resetBtn) {
       resetBtn.addEventListener('click', function () {
-        addDebugLog('Click: resetQuiz');
         postToExtension({ command: 'resetQuiz' });
       });
     }
 
     if (gotItBtn) {
       gotItBtn.addEventListener('click', function () {
-        addDebugLog('Click: selfGrade got-it');
         postToExtension({ command: 'selfGrade', result: 'got-it' });
       });
     }
 
     if (missedItBtn) {
       missedItBtn.addEventListener('click', function () {
-        addDebugLog('Click: selfGrade missed-it');
         postToExtension({ command: 'selfGrade', result: 'missed-it' });
       });
     }
 
     window.addEventListener('message', function (event) {
       var msg = event.data || {};
-      addDebugLog('Received: ' + String(msg.command || 'unknown'));
 
       if (msg.command === 'setLoading') {
         var on = Boolean(msg.loading);
@@ -601,8 +556,6 @@ export function getQuizWebviewHtml(question: string): string {
         if (missedItBtn) missedItBtn.disabled = true;
       }
     });
-
-    addDebugLog('UI ready.');
   </script>
 </body>
 </html>`;

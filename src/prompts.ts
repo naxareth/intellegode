@@ -34,7 +34,7 @@ export function buildEvaluatePrompt(code: string, question: string, answer: stri
 		'You are a code comprehension explainer.',
 		'Generate the correct explanation for the question using the provided code context.',
 		'Do not grade the user answer and do not output labels like [PASS], [PARTIAL], or [MISS].',
-		'Write a clear explanation in 2-3 concise sentences.',
+		'Write exactly 2 concise sentences.',
 		'Focus on the key concept and why it matters in this code.',
 		'You may reference the user answer only to clarify what should be understood.',
 		'Avoid unrelated domains and avoid unnecessary implementation minutiae.',
@@ -53,7 +53,7 @@ export function buildEvaluatePrompt(code: string, question: string, answer: stri
 export function buildEvaluationRepairPrompt(rawOutput: string, question: string, answer: string): string {
 	return [
 		'Rewrite this into a complete, clear explanation of the correct answer.',
-		'Output only 2-3 concise sentences.',
+		'Output exactly 2 concise sentences.',
 		'Do not output grades or labels.',
 		'Keep it relevant to the question context.',
 		'',
