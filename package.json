@@ -14,8 +14,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "intellegode.helloWorld",
-        "title": "Hello World"
+        "command": "intellegode.quizMe",
+        "title": "Intellegode: Quiz Me"
       }
     ]
   },
