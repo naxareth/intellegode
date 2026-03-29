@@ -143,8 +143,11 @@ function getQuizWebviewHtml(question: string): string {
 			font-family: sans-serif;
 			margin: 16px;
 			line-height: 1.4;
-			background: var(--vscode-editor-background);
-			color: var(--vscode-editor-foreground);
+			background: var(--vscode-editor-background, #1e1e1e);
+			color: var(--vscode-editor-foreground, #d4d4d4);
+		}
+		textarea, button {
+			font: inherit;
 		}
 		h2 { margin-top: 0; font-size: 1.1rem; }
 		.question { margin: 8px 0 14px; }
@@ -152,19 +155,29 @@ function getQuizWebviewHtml(question: string): string {
 			width: 100%;
 			min-height: 90px;
 			resize: vertical;
-			background: var(--vscode-input-background);
-			color: var(--vscode-input-foreground);
+			background-color: var(--vscode-input-background, var(--vscode-editor-background, #1e1e1e));
+			color: var(--vscode-input-foreground, var(--vscode-editor-foreground, #d4d4d4));
+			border: 1px solid var(--vscode-editor-foreground, #d4d4d4);
+		}
+		textarea::placeholder {
+			color: var(--vscode-input-foreground, var(--vscode-editor-foreground, #d4d4d4));
+			opacity: 0.7;
 		}
 		button {
 			margin-top: 10px;
 			padding: 6px 12px;
-			background: var(--vscode-button-background);
-			color: var(--vscode-button-foreground);
+			appearance: none;
+			background-color: var(--vscode-button-background, #0e639c);
+			color: var(--vscode-button-foreground, #ffffff);
 			border: none;
 			cursor: pointer;
 		}
 		button:hover {
-			background: var(--vscode-button-hoverBackground);
+			background-color: var(--vscode-button-hoverBackground, #1177bb);
+		}
+		button:disabled {
+			opacity: 0.6;
+			cursor: default;
 		}
 		.muted { color: var(--vscode-editor-foreground); opacity: 0.75; margin-top: 8px; }
 		.result { margin-top: 14px; white-space: pre-wrap; }
