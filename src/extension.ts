@@ -88,9 +88,14 @@ async function generateQuizQuestion(selectedCode: string): Promise<string> {
 
 async function evaluateAnswer(code: string, question: string, answer: string): Promise<string> {
 	const prompt = [
-		'You are a code comprehension coach.',
-		'Evaluate whether the user understood the code based on the question and answer.',
-		'Respond in 1-2 short sentences and clearly say if they understood it or not.',
+		'You are a strict code comprehension evaluator.',
+		'Evaluate the user answer against the code and question.',
+		'Response rules (must follow exactly):',
+		'1) Start with either "✅ You got it!" or "❌ Not quite."',
+		'2) Then provide exactly 1 sentence of feedback.',
+		'3) If wrong, include only a small hint in that sentence.',
+		'4) Never reveal the full corrected explanation or full answer.',
+		'5) Keep it concise.',
 		'',
 		'Code:',
 		code,
