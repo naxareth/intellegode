@@ -318,6 +318,21 @@ export function getQuizWebviewHtml(question: string): string {
       display: block;
     }
 
+    .debug-log {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px dashed rgba(255,255,255,0.2);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.02);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      opacity: 0.8;
+      max-height: 120px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
     @keyframes slideIn {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
@@ -375,9 +390,47 @@ export function getQuizWebviewHtml(question: string): string {
     <div class="self-grade-status" id="selfGradeStatus"></div>
   </div>
   <div class="result-box" id="result"></div>
+  <div class="debug-log" id="debugLog">[Intellegode] UI booting...</div>
 
   <script>
-    const vscode = acquireVsCodeApi();
+    const debugLog = document.getElementById('debugLog');
+
+    function addDebugLog(message) {
+      if (!debugLog) {
+        return;
+      }
+      const ts = new Date().toLocaleTimeString();
+      const next = '[' + ts + '] ' + message;
+      debugLog.textContent = next + '\n' + debugLog.textContent;
+    }
+
+    function safeScrollIntoView(el) {
+      if (!el || typeof el.scrollIntoView !== 'function') {
+        return;
+      }
+      try {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch {
+        el.scrollIntoView();
+      }
+    }
+
+    const vscode = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null;
+    if (!vscode) {
+      addDebugLog('acquireVsCodeApi unavailable; webview bridge not initialized.');
+    } else {
+      addDebugLog('Webview bridge initialized.');
+    }
+
+    function postToExtension(message) {
+      if (!vscode) {
+        addDebugLog('Cannot post message (no VS Code bridge): ' + JSON.stringify(message));
+        return;
+      }
+      addDebugLog('Sent: ' + message.command);
+      vscode.postMessage(message);
+    }
+
     const submitBtn = document.getElementById('submit');
     const hintBtn = document.getElementById('hintBtn');
     const newQuestionBtn = document.getElementById('newQuestionBtn');
@@ -396,99 +449,120 @@ export function getQuizWebviewHtml(question: string): string {
     const gotItBtn = document.getElementById('gotItBtn');
     const missedItBtn = document.getElementById('missedItBtn');
 
-    submitBtn.addEventListener('click', () => {
-      reviewBox.classList.remove('visible');
-      selfGradeActions.classList.remove('visible');
-      result.className = 'result-box visible';
-      result.textContent = 'Generating explanation...';
-      result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      vscode.postMessage({ command: 'submitAnswer', answer: answerInput.value.trim() });
+    if (!submitBtn || !hintBtn || !newQuestionBtn || !resetBtn || !answerInput) {
+      addDebugLog('Critical UI elements are missing; buttons may not respond.');
+    }
+
+    submitBtn?.addEventListener('click', () => {
+      addDebugLog('Click: submit');
+      reviewBox?.classList.remove('visible');
+      selfGradeActions?.classList.remove('visible');
+      if (result) {
+        result.className = 'result-box visible';
+        result.textContent = 'Generating explanation...';
+        safeScrollIntoView(result);
+      }
+      postToExtension({ command: 'submitAnswer', answer: answerInput?.value.trim() });
     });
 
-    hintBtn.addEventListener('click', () => {
-      vscode.postMessage({ command: 'requestHint' });
+    hintBtn?.addEventListener('click', () => {
+      addDebugLog('Click: requestHint');
+      postToExtension({ command: 'requestHint' });
     });
 
-    newQuestionBtn.addEventListener('click', () => {
-      vscode.postMessage({ command: 'newQuestion' });
+    newQuestionBtn?.addEventListener('click', () => {
+      addDebugLog('Click: newQuestion');
+      postToExtension({ command: 'newQuestion' });
     });
 
-    resetBtn.addEventListener('click', () => {
-      vscode.postMessage({ command: 'resetQuiz' });
+    resetBtn?.addEventListener('click', () => {
+      addDebugLog('Click: resetQuiz');
+      postToExtension({ command: 'resetQuiz' });
     });
 
-    gotItBtn.addEventListener('click', () => {
-      vscode.postMessage({ command: 'selfGrade', result: 'got-it' });
+    gotItBtn?.addEventListener('click', () => {
+      addDebugLog('Click: selfGrade got-it');
+      postToExtension({ command: 'selfGrade', result: 'got-it' });
     });
 
-    missedItBtn.addEventListener('click', () => {
-      vscode.postMessage({ command: 'selfGrade', result: 'missed-it' });
+    missedItBtn?.addEventListener('click', () => {
+      addDebugLog('Click: selfGrade missed-it');
+      postToExtension({ command: 'selfGrade', result: 'missed-it' });
     });
 
     window.addEventListener('message', (event) => {
       const msg = event.data;
+      addDebugLog('Received: ' + String(msg.command ?? 'unknown'));
 
       if (msg.command === 'setLoading') {
         const on = Boolean(msg.loading);
-        loading.classList.toggle('visible', on);
+        loading?.classList.toggle('visible', on);
         if (on) {
-          loading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          safeScrollIntoView(loading);
         }
-        submitBtn.disabled = on;
-        hintBtn.disabled = on;
-        newQuestionBtn.disabled = on;
-        resetBtn.disabled = on;
-        answerInput.disabled = on;
+        if (submitBtn) submitBtn.disabled = on;
+        if (hintBtn) hintBtn.disabled = on;
+        if (newQuestionBtn) newQuestionBtn.disabled = on;
+        if (resetBtn) resetBtn.disabled = on;
+        if (answerInput) answerInput.disabled = on;
       }
 
       if (msg.command === 'updateQuestion') {
-        questionText.textContent = String(msg.question ?? '');
-        answerInput.value = '';
-        hintText.textContent = '';
-        hintBox.classList.remove('visible');
-        reviewBox.classList.remove('visible');
-        selfGradeActions.classList.remove('visible');
-        selfGradeStatus.classList.remove('visible');
-        selfGradeStatus.textContent = '';
-        result.textContent = '';
-        result.className = 'result-box';
+        if (questionText) questionText.textContent = String(msg.question ?? '');
+        if (answerInput) answerInput.value = '';
+        if (hintText) hintText.textContent = '';
+        hintBox?.classList.remove('visible');
+        reviewBox?.classList.remove('visible');
+        selfGradeActions?.classList.remove('visible');
+        selfGradeStatus?.classList.remove('visible');
+        if (selfGradeStatus) selfGradeStatus.textContent = '';
+        if (result) {
+          result.textContent = '';
+          result.className = 'result-box';
+        }
       }
 
       if (msg.command === 'resetQuiz') {
-        answerInput.value = '';
-        hintText.textContent = '';
-        hintBox.classList.remove('visible');
-        reviewBox.classList.remove('visible');
-        selfGradeActions.classList.remove('visible');
-        selfGradeStatus.classList.remove('visible');
-        selfGradeStatus.textContent = '';
-        result.textContent = '';
-        result.className = 'result-box';
+        if (answerInput) answerInput.value = '';
+        if (hintText) hintText.textContent = '';
+        hintBox?.classList.remove('visible');
+        reviewBox?.classList.remove('visible');
+        selfGradeActions?.classList.remove('visible');
+        selfGradeStatus?.classList.remove('visible');
+        if (selfGradeStatus) selfGradeStatus.textContent = '';
+        if (result) {
+          result.textContent = '';
+          result.className = 'result-box';
+        }
       }
 
       if (msg.command === 'showHint') {
-        hintText.textContent = msg.hint ?? '';
-        hintBox.classList.add('visible');
+        if (hintText) hintText.textContent = msg.hint ?? '';
+        hintBox?.classList.add('visible');
       }
 
       if (msg.command === 'showResult') {
         const text = String(msg.result ?? '');
-        result.textContent = text;
-        result.classList.add('visible');
-        result.className = 'result-box visible';
-        result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (result) {
+          result.textContent = text;
+          result.classList.add('visible');
+          result.className = 'result-box visible';
+          safeScrollIntoView(result);
+        }
       }
 
       if (msg.command === 'showReview') {
-        userAnswerReview.textContent = String(msg.userAnswer ?? '');
-        explanationReview.textContent = String(msg.explanation ?? '');
-        reviewBox.classList.add('visible');
-        selfGradeActions.classList.add('visible');
-        gotItBtn.disabled = false;
-        missedItBtn.disabled = false;
-        result.className = 'result-box';
-        result.textContent = '';
-        reviewBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (userAnswerReview) userAnswerReview.textContent = String(msg.userAnswer ?? '');
+        if (explanationReview) explanationReview.textContent = String(msg.explanation ?? '');
+        reviewBox?.classList.add('visible');
+        selfGradeActions?.classList.add('visible');
+        if (gotItBtn) gotItBtn.disabled = false;
+        if (missedItBtn) missedItBtn.disabled = false;
+        if (result) {
+          result.className = 'result-box';
+          result.textContent = '';
+        }
+        safeScrollIntoView(reviewBox);
       }
 
       if (msg.command === 'showSelfGrade') {
@@ -501,14 +575,18 @@ export function getQuizWebviewHtml(question: string): string {
             ? 'Last result: You marked this as missed it.'
             : 'Progress reset.';
 
-        selfGradeStatus.textContent =
-          latest + '\n' +
-          'Got it: ' + got + ' | Missed it: ' + missed + ' | Total reviewed: ' + total;
-        selfGradeStatus.classList.add('visible');
-        gotItBtn.disabled = true;
-        missedItBtn.disabled = true;
+        if (selfGradeStatus) {
+          selfGradeStatus.textContent =
+            latest + '\n' +
+            'Got it: ' + got + ' | Missed it: ' + missed + ' | Total reviewed: ' + total;
+          selfGradeStatus.classList.add('visible');
+        }
+        if (gotItBtn) gotItBtn.disabled = true;
+        if (missedItBtn) missedItBtn.disabled = true;
       }
     });
+
+    addDebugLog('UI ready.');
   </script>
 </body>
 </html>`;
