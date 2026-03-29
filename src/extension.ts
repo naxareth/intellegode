@@ -121,14 +121,15 @@ async function generateHint(code: string, question: string): Promise<string> {
 
 async function evaluateAnswer(code: string, question: string, answer: string): Promise<string> {
 	const prompt = [
-		'You are a strict code comprehension evaluator.',
-		'Evaluate the user answer against the code and question.',
-		'Response rules (must follow exactly):',
+		'You are a concept-focused code comprehension evaluator.',
+		'Evaluate whether the user demonstrates understanding of the core concept behind the question.',
+		'Accept answers that are correct in meaning even if wording is different from ideal phrasing.',
+		'Give "✅ You got it!" if the user got the main idea right, even partially.',
+		'Give "❌ Not quite." only if the user clearly misunderstood or got the concept wrong.',
+		'Feedback rules (must follow):',
 		'1) Start with either "✅ You got it!" or "❌ Not quite."',
-		'2) Then provide exactly 1 sentence of feedback.',
-		'3) If wrong, include only a small hint in that sentence.',
-		'4) Never reveal the full corrected explanation or full answer.',
-		'5) Keep it concise.',
+		'2) Keep feedback to 1-2 sentences maximum.',
+		'3) No long explanations and do not reveal the full answer.',
 		'',
 		'Code:',
 		code,
