@@ -37,30 +37,42 @@ export function activate(context: vscode.ExtensionContext) {
 			// Render the initial question UI.
 			panel.webview.html = getQuizWebviewHtml(question);
 
-			// Handle answer submissions from the webview.
+			// Handle answer submissions and hint requests from the webview.
 			panel.webview.onDidReceiveMessage(async (message) => {
-				if (message.command !== 'submitAnswer') {
+				if (message.command === 'submitAnswer') {
+					const userAnswer = String(message.answer ?? '').trim();
+					if (!userAnswer) {
+						panel.webview.postMessage({
+							command: 'showResult',
+							result: 'Please enter an answer before submitting.'
+						});
+						return;
+					}
+
+					panel.webview.postMessage({ command: 'setLoading', loading: true });
+					try {
+						const evaluation = await evaluateAnswer(selectedCode, question, userAnswer);
+						panel.webview.postMessage({ command: 'showResult', result: evaluation });
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+						panel.webview.postMessage({ command: 'showResult', result: `Error: ${errorMessage}` });
+					} finally {
+						panel.webview.postMessage({ command: 'setLoading', loading: false });
+					}
 					return;
 				}
 
-				const userAnswer = String(message.answer ?? '').trim();
-				if (!userAnswer) {
-					panel.webview.postMessage({
-						command: 'showResult',
-						result: 'Please enter an answer before submitting.'
-					});
-					return;
-				}
-
-				panel.webview.postMessage({ command: 'setLoading', loading: true });
-				try {
-					const evaluation = await evaluateAnswer(selectedCode, question, userAnswer);
-					panel.webview.postMessage({ command: 'showResult', result: evaluation });
-				} catch (error) {
-					const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-					panel.webview.postMessage({ command: 'showResult', result: `Error: ${errorMessage}` });
-				} finally {
-					panel.webview.postMessage({ command: 'setLoading', loading: false });
+				if (message.command === 'requestHint') {
+					panel.webview.postMessage({ command: 'setLoading', loading: true });
+					try {
+						const hint = await generateHint(selectedCode, question);
+						panel.webview.postMessage({ command: 'showHint', hint });
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+						panel.webview.postMessage({ command: 'showHint', hint: `Hint error: ${errorMessage}` });
+					} finally {
+						panel.webview.postMessage({ command: 'setLoading', loading: false });
+					}
 				}
 			});
 		} catch (error) {
@@ -75,7 +87,10 @@ export function activate(context: vscode.ExtensionContext) {
 async function generateQuizQuestion(selectedCode: string): Promise<string> {
 	const prompt = [
 		'You are a code comprehension coach.',
-		'Create exactly one concise comprehension question about this code.',
+		'Create exactly one beginner-friendly comprehension question about this code.',
+		'The question must be short and focus on a single concept only.',
+		'No multi-part questions.',
+		'Maximum length: 1-2 sentences.',
 		'Do not provide the answer.',
 		'',
 		'Code:',
@@ -84,6 +99,24 @@ async function generateQuizQuestion(selectedCode: string): Promise<string> {
 
 	const result = await callOllama(prompt);
 	return result || 'No question was generated.';
+}
+
+async function generateHint(code: string, question: string): Promise<string> {
+	const prompt = [
+		'You are a code comprehension coach.',
+		'Give exactly one sentence hint for the user.',
+		'The hint should point them in the right direction without giving away the answer.',
+		'Do not provide the full explanation or final answer.',
+		'',
+		'Code:',
+		code,
+		'',
+		'Question:',
+		question
+	].join('\n');
+
+	const result = await callOllama(prompt);
+	return result || 'No hint was generated.';
 }
 
 async function evaluateAnswer(code: string, question: string, answer: string): Promise<string> {
@@ -155,7 +188,13 @@ function getQuizWebviewHtml(question: string): string {
 			font: inherit;
 		}
 		h2 { margin-top: 0; font-size: 1.1rem; }
-		.question { margin: 8px 0 14px; }
+		.question { margin: 8px 0 10px; }
+		.hint {
+			margin: 0 0 14px;
+			color: var(--vscode-editor-foreground, #d4d4d4);
+			opacity: 0.9;
+			font-style: italic;
+		}
 		textarea {
 			width: 100%;
 			min-height: 90px;
@@ -184,6 +223,11 @@ function getQuizWebviewHtml(question: string): string {
 			opacity: 0.6;
 			cursor: default;
 		}
+		.actions {
+			display: flex;
+			gap: 8px;
+			margin-top: 10px;
+		}
 		.muted { color: var(--vscode-editor-foreground); opacity: 0.75; margin-top: 8px; }
 		.result { margin-top: 14px; white-space: pre-wrap; }
 	</style>
@@ -192,13 +236,17 @@ function getQuizWebviewHtml(question: string): string {
   <!-- Shows the generated comprehension question. -->
   <h2>Comprehension Question</h2>
   <div class="question">${escapeHtml(question)}</div>
+	<div id="hint" class="hint"></div>
 
   <!-- User types their answer here. -->
   <label for="answer"><strong>Your answer</strong></label>
   <textarea id="answer" placeholder="Type your answer..."></textarea>
 
-  <!-- Submits the answer to the extension host. -->
-  <button id="submit">Submit</button>
+	<!-- Submit and hint actions. -->
+	<div class="actions">
+		<button id="submit">Submit</button>
+		<button id="hintBtn" type="button">Give me a hint</button>
+	</div>
   <div id="loading" class="muted" style="display:none;">Evaluating...</div>
 
   <!-- Displays Ollama's evaluation result. -->
@@ -208,7 +256,9 @@ function getQuizWebviewHtml(question: string): string {
     // Access the VS Code messaging bridge inside the webview.
     const vscode = acquireVsCodeApi();
     const submitButton = document.getElementById('submit');
+	const hintButton = document.getElementById('hintBtn');
     const answerInput = document.getElementById('answer');
+	const hint = document.getElementById('hint');
     const loading = document.getElementById('loading');
     const result = document.getElementById('result');
 
@@ -217,6 +267,10 @@ function getQuizWebviewHtml(question: string): string {
       vscode.postMessage({ command: 'submitAnswer', answer });
     });
 
+		hintButton.addEventListener('click', () => {
+			vscode.postMessage({ command: 'requestHint' });
+		});
+
     // Receives result/loading updates from extension.ts.
     window.addEventListener('message', (event) => {
       const message = event.data;
@@ -224,8 +278,12 @@ function getQuizWebviewHtml(question: string): string {
         const isLoading = Boolean(message.loading);
         loading.style.display = isLoading ? 'block' : 'none';
         submitButton.disabled = isLoading;
+				hintButton.disabled = isLoading;
         answerInput.disabled = isLoading;
       }
+			if (message.command === 'showHint') {
+				hint.textContent = String(message.hint ?? '');
+			}
       if (message.command === 'showResult') {
         result.textContent = String(message.result ?? '');
       }
