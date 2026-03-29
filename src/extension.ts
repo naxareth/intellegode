@@ -125,15 +125,15 @@ async function evaluateAnswer(code: string, question: string, answer: string): P
 		'Evaluate whether the user demonstrates understanding of the core concept behind the question.',
 		'Accept answers that are correct in meaning even if wording is different from ideal phrasing.',
 		'Use exactly one of these outcomes:',
-		'1) "✅ Got it" — user clearly understood the core concept.',
-		'2) "⚠️ Partially right" — user got part of it but missed something important.',
-		'3) "❌ Not quite" — user clearly misunderstood the concept.',
-		'Be generous: if the user shows any real understanding, prefer "⚠️ Partially right" over "❌ Not quite".',
+    '1) "[PASS]" — user clearly understood the core concept.',
+    '2) "[PARTIAL]" — user got part of it but missed something important.',
+    '3) "[MISS]" — user clearly misunderstood the concept.',
+    'Be generous: if the user shows any real understanding, prefer "[PARTIAL]" over "[MISS]".',
 		'Feedback rules (must follow):',
 		'1) Start with exactly one outcome label above.',
 		'2) Keep feedback to 1-2 sentences maximum.',
-		'3) For "⚠️ Partially right", give exactly one sentence hint about what was missed, nothing more.',
-		'4) For "❌ Not quite", give exactly one sentence nudge in the right direction.',
+    '3) For "[PARTIAL]", give exactly one sentence hint about what was missed, nothing more.',
+    '4) For "[MISS]", give exactly one sentence nudge in the right direction.',
 		'5) Never reveal the full answer or implementation details.',
 		'6) No long explanations.',
 		'',
@@ -421,7 +421,7 @@ function getQuizWebviewHtml(question: string): string {
   </div>
 
   <div class="hint-box" id="hint">
-    <div class="hint-label">💡 Hint</div>
+    <div class="hint-label">Hint</div>
     <div id="hintText"></div>
   </div>
 
@@ -475,9 +475,9 @@ function getQuizWebviewHtml(question: string): string {
         result.textContent = text;
         result.classList.add('visible');
         result.className = 'result-box visible';
-        if (text.startsWith('✅')) result.classList.add('pass');
-        else if (text.startsWith('⚠️')) result.classList.add('partial');
-        else if (text.startsWith('❌')) result.classList.add('fail');
+        if (text.startsWith('[PASS]')) result.classList.add('pass');
+        else if (text.startsWith('[PARTIAL]')) result.classList.add('partial');
+        else if (text.startsWith('[MISS]')) result.classList.add('fail');
       }
     });
   </script>
