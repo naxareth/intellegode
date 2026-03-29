@@ -9,6 +9,8 @@ export async function startQuizSession(
 	evaluatorModel: string
 ): Promise<void> {
 	let currentQuestion = await generateQuizQuestion(selectedCode);
+	let gotItCount = 0;
+	let missedItCount = 0;
 	panel.webview.html = getQuizWebviewHtml(currentQuestion);
 
 	// Route webview events to the quiz service and return UI updates to the panel.
@@ -25,8 +27,12 @@ export async function startQuizSession(
 
 			panel.webview.postMessage({ command: 'setLoading', loading: true });
 			try {
-				const evaluation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer, evaluatorModel);
-				panel.webview.postMessage({ command: 'showResult', result: evaluation });
+				const explanation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer, evaluatorModel);
+				panel.webview.postMessage({
+					command: 'showReview',
+					userAnswer,
+					explanation
+				});
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 				panel.webview.postMessage({ command: 'showResult', result: `Error: ${errorMessage}` });
@@ -68,7 +74,34 @@ export async function startQuizSession(
 		}
 
 		if (message.command === 'resetQuiz') {
+			gotItCount = 0;
+			missedItCount = 0;
 			panel.webview.postMessage({ command: 'resetQuiz' });
+			panel.webview.postMessage({
+				command: 'showSelfGrade',
+				result: 'reset',
+				gotItCount,
+				missedItCount,
+				total: 0
+			});
+			return;
+		}
+
+		if (message.command === 'selfGrade') {
+			if (message.result === 'got-it') {
+				gotItCount += 1;
+			}
+			if (message.result === 'missed-it') {
+				missedItCount += 1;
+			}
+
+			panel.webview.postMessage({
+				command: 'showSelfGrade',
+				result: message.result,
+				gotItCount,
+				missedItCount,
+				total: gotItCount + missedItCount
+			});
 		}
 	});
 }

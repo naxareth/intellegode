@@ -9,9 +9,6 @@ import {
 export type OllamaCaller = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number) => Promise<string>;
 export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number) => Promise<string>;
 
-const LABEL_PREFIX = /^(\[PASS\]|\[PARTIAL\]|\[MISS\])\s+/;
-const LEGACY_LABEL_PREFIX = /^(✅\s*Got it|⚠️\s*Partially right|❌\s*Not quite)\s*/;
-
 export async function generateQuizQuestion(selectedCode: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
 	const result = await ollamaCaller(buildQuizQuestionPrompt(selectedCode), undefined, 60, 15000);
 	return result || 'No question was generated.';
@@ -34,58 +31,46 @@ export async function evaluateAnswer(
 	model: string = 'qwen3:4b',
 	ollamaCaller: OllamaCallerWithModel = callOllama
 ): Promise<string> {
-	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer), model, 140, 22000);
-	const normalizedInitial = normalizeEvaluationOutput(initial);
+	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer), model, 180, 22000);
+	const normalizedInitial = normalizeExplanationOutput(initial);
 	if (normalizedInitial && isContextuallyRelevant(normalizedInitial, question, answer)) {
 		return normalizedInitial;
 	}
 
-	// Retry once by asking Ollama to rewrite malformed output to the required format.
-	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer), model, 160, 24000);
-	const normalizedRepaired = normalizeEvaluationOutput(repaired);
+	// Retry once by asking Ollama to rewrite malformed output to a concise explanation.
+	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer), model, 220, 24000);
+	const normalizedRepaired = normalizeExplanationOutput(repaired);
 	if (normalizedRepaired && isContextuallyRelevant(normalizedRepaired, question, answer)) {
 		return normalizedRepaired;
 	}
 
-	return `[PARTIAL] You captured part of the main idea because your explanation aligns with the question's core concept. You missed at least one important detail needed for a complete explanation of "${question}".`;
+	return `The key idea in this question is understanding ${question}. Focus on the mechanism in the code and explain what it does and why that behavior is important.`;
 }
 
-export function normalizeEvaluationOutput(raw: string): string | null {
+export function normalizeExplanationOutput(raw: string): string | null {
 	const oneLine = raw.replace(/\r?\n+/g, ' ').trim();
 	if (!oneLine) {
 		return null;
 	}
 
-	const mapped = oneLine
-		.replace(/^(✅\s*Got it!?)/, '[PASS]')
-		.replace(/^(⚠️\s*Partially right\.?)/, '[PARTIAL]')
-		.replace(/^(❌\s*Not quite\.?)/, '[MISS]')
-		.replace(/^\[(pass|partial|miss)\]/i, (match) => match.toUpperCase());
-
-	if (!LABEL_PREFIX.test(mapped) && !LEGACY_LABEL_PREFIX.test(mapped)) {
+	if (!isValidExplanationOutput(oneLine)) {
 		return null;
 	}
 
-	if (!isValidEvaluationOutput(mapped)) {
-		return null;
-	}
-
-	return mapped;
+	return oneLine;
 }
 
-export function isValidEvaluationOutput(text: string): boolean {
+export function isValidExplanationOutput(text: string): boolean {
 	const normalized = text.trim();
-	if (!LABEL_PREFIX.test(normalized)) {
+	if (!normalized) {
 		return false;
 	}
 
-	const payload = normalized.replace(LABEL_PREFIX, '').trim();
-	if (!payload) {
+	if (/\[(PASS|PARTIAL|MISS)\]/i.test(normalized)) {
 		return false;
 	}
 
-	// Enforce that feedback has at least a short explanation, not just one word.
-	if (payload.split(/\s+/).length < 3) {
+	if (normalized.split(/\s+/).length < 10) {
 		return false;
 	}
 

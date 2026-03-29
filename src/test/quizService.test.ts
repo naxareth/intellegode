@@ -2,19 +2,22 @@ import * as assert from 'assert';
 import {
 	evaluateAnswer,
 	isContextuallyRelevant,
-	isValidEvaluationOutput,
-	normalizeEvaluationOutput
+	isValidExplanationOutput,
+	normalizeExplanationOutput
 } from '../quizService';
 
 suite('Quiz Service', () => {
-	test('normalizeEvaluationOutput maps legacy emoji labels', () => {
-		const normalized = normalizeEvaluationOutput('✅ Got it You are right because this protects access.');
-		assert.strictEqual(normalized, '[PASS] You are right because this protects access.');
+	test('normalizeExplanationOutput flattens lines for valid output', () => {
+		const normalized = normalizeExplanationOutput('This check controls access to the action.\nIt prevents unauthorized users from executing the protected logic.');
+		assert.strictEqual(
+			normalized,
+			'This check controls access to the action. It prevents unauthorized users from executing the protected logic.'
+		);
 	});
 
-	test('isValidEvaluationOutput rejects label-only output', () => {
-		assert.strictEqual(isValidEvaluationOutput('[PASS]'), false);
-		assert.strictEqual(isValidEvaluationOutput('[MISS] nope'), false);
+	test('isValidExplanationOutput rejects labels and very short text', () => {
+		assert.strictEqual(isValidExplanationOutput('[PASS] You are right.'), false);
+		assert.strictEqual(isValidExplanationOutput('Too short to be useful.'), false);
 	});
 
 	test('evaluateAnswer retries once for malformed output', async () => {
@@ -22,9 +25,9 @@ suite('Quiz Service', () => {
 		const fakeCaller = async (prompt: string): Promise<string> => {
 			calls.push(prompt);
 			if (calls.length === 1) {
-				return '[PASS]';
+				return 'Unclear.';
 			}
-			return '[PASS] You identified the key concept because you explained the permission check for access control.';
+			return 'This check ensures only users with permission can proceed. It protects the guarded behavior from unauthorized access.';
 		};
 
 		const result = await evaluateAnswer(
@@ -34,7 +37,7 @@ suite('Quiz Service', () => {
 			'qwen3:4b',
 			fakeCaller
 		);
-		assert.ok(result.startsWith('[PASS]'));
+		assert.ok(result.includes('permission'));
 		assert.strictEqual(calls.length, 2);
 	});
 
@@ -43,9 +46,9 @@ suite('Quiz Service', () => {
 		const fakeCaller = async (prompt: string): Promise<string> => {
 			calls.push(prompt);
 			if (calls.length === 1) {
-				return '[PASS] You recognized this is a permission check because it limits who can execute this step.';
+				return 'This explains the permission gate and access control behavior in this function in enough detail for a valid review output.';
 			}
-			return '[PASS] You described the velocity score because you explained how slope and volume are blended.';
+			return 'Velocity score combines slope and volume to estimate momentum. The code blends these signals so recency can influence the final score.';
 		};
 
 		const question = 'How is velocityScore calculated?';
@@ -56,20 +59,19 @@ suite('Quiz Service', () => {
 	});
 
 	test('evaluateAnswer returns safe fallback when malformed twice', async () => {
-		const fakeCaller = async (): Promise<string> => '[PARTIAL]';
+		const fakeCaller = async (): Promise<string> => 'Nope.';
 		const result = await evaluateAnswer('code', 'question', 'answer', 'qwen3:4b', fakeCaller);
-		assert.ok(result.startsWith('[PARTIAL]'));
-		assert.ok(result.includes('because'));
+		assert.ok(result.includes('key idea'));
 	});
 
 	test('isContextuallyRelevant requires at least one key-term overlap', () => {
 		const relevant = isContextuallyRelevant(
-			'[PASS] You explained velocity because you described how slope and volume are combined.',
+			'You explained velocity by describing how slope and volume are combined to produce the final score.',
 			'How is velocityScore calculated?',
 			'It blends slope and volume.'
 		);
 		const unrelated = isContextuallyRelevant(
-			'[PASS] You identified a permission check because this controls access.',
+			'You identified a permission check because this controls access.',
 			'How is velocityScore calculated?',
 			'It blends slope and volume.'
 		);

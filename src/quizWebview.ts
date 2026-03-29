@@ -227,9 +227,96 @@ export function getQuizWebviewHtml(question: string): string {
     }
 
     .result-box.visible { display: block; }
-    .result-box.pass { border-left: 3px solid #3fb950; }
-    .result-box.partial { border-left: 3px solid #d29922; }
-    .result-box.fail { border-left: 3px solid #f85149; }
+
+    .review-box {
+      display: none;
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(88,166,255,0.22);
+      background: rgba(88,166,255,0.08);
+      animation: slideIn 0.25s ease;
+    }
+
+    .review-box.visible { display: block; }
+
+    .review-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 760px) {
+      .review-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .review-col {
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .review-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      opacity: 0.7;
+    }
+
+    .review-text {
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    .self-grade-actions {
+      display: none;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .self-grade-actions.visible {
+      display: flex;
+    }
+
+    .self-grade-actions button {
+      flex: 1;
+      padding: 9px 12px;
+    }
+
+    #gotItBtn {
+      background: rgba(63,185,80,0.2);
+      color: #9be9a8;
+      border: 1px solid rgba(63,185,80,0.35);
+    }
+
+    #missedItBtn {
+      background: rgba(248,81,73,0.2);
+      color: #ffa198;
+      border: 1px solid rgba(248,81,73,0.35);
+    }
+
+    .self-grade-status {
+      display: none;
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.03);
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .self-grade-status.visible {
+      display: block;
+    }
 
     @keyframes slideIn {
       from { opacity: 0; transform: translateY(6px); }
@@ -270,6 +357,23 @@ export function getQuizWebviewHtml(question: string): string {
   </div>
 
   <div class="loading" id="loading">Thinking...</div>
+  <div class="review-box" id="reviewBox">
+    <div class="review-grid">
+      <div class="review-col">
+        <div class="review-label">Your answer</div>
+        <div class="review-text" id="userAnswerReview"></div>
+      </div>
+      <div class="review-col">
+        <div class="review-label">Correct explanation</div>
+        <div class="review-text" id="explanationReview"></div>
+      </div>
+    </div>
+    <div class="self-grade-actions" id="selfGradeActions">
+      <button id="gotItBtn">I got it</button>
+      <button id="missedItBtn">I missed it</button>
+    </div>
+    <div class="self-grade-status" id="selfGradeStatus"></div>
+  </div>
   <div class="result-box" id="result"></div>
 
   <script>
@@ -284,6 +388,13 @@ export function getQuizWebviewHtml(question: string): string {
     const hintText = document.getElementById('hintText');
     const loading = document.getElementById('loading');
     const result = document.getElementById('result');
+    const reviewBox = document.getElementById('reviewBox');
+    const userAnswerReview = document.getElementById('userAnswerReview');
+    const explanationReview = document.getElementById('explanationReview');
+    const selfGradeActions = document.getElementById('selfGradeActions');
+    const selfGradeStatus = document.getElementById('selfGradeStatus');
+    const gotItBtn = document.getElementById('gotItBtn');
+    const missedItBtn = document.getElementById('missedItBtn');
 
     submitBtn.addEventListener('click', () => {
       vscode.postMessage({ command: 'submitAnswer', answer: answerInput.value.trim() });
@@ -299,6 +410,14 @@ export function getQuizWebviewHtml(question: string): string {
 
     resetBtn.addEventListener('click', () => {
       vscode.postMessage({ command: 'resetQuiz' });
+    });
+
+    gotItBtn.addEventListener('click', () => {
+      vscode.postMessage({ command: 'selfGrade', result: 'got-it' });
+    });
+
+    missedItBtn.addEventListener('click', () => {
+      vscode.postMessage({ command: 'selfGrade', result: 'missed-it' });
     });
 
     window.addEventListener('message', (event) => {
@@ -319,6 +438,10 @@ export function getQuizWebviewHtml(question: string): string {
         answerInput.value = '';
         hintText.textContent = '';
         hintBox.classList.remove('visible');
+        reviewBox.classList.remove('visible');
+        selfGradeActions.classList.remove('visible');
+        selfGradeStatus.classList.remove('visible');
+        selfGradeStatus.textContent = '';
         result.textContent = '';
         result.className = 'result-box';
       }
@@ -327,6 +450,10 @@ export function getQuizWebviewHtml(question: string): string {
         answerInput.value = '';
         hintText.textContent = '';
         hintBox.classList.remove('visible');
+        reviewBox.classList.remove('visible');
+        selfGradeActions.classList.remove('visible');
+        selfGradeStatus.classList.remove('visible');
+        selfGradeStatus.textContent = '';
         result.textContent = '';
         result.className = 'result-box';
       }
@@ -341,9 +468,35 @@ export function getQuizWebviewHtml(question: string): string {
         result.textContent = text;
         result.classList.add('visible');
         result.className = 'result-box visible';
-        if (text.startsWith('[PASS]')) result.classList.add('pass');
-        else if (text.startsWith('[PARTIAL]')) result.classList.add('partial');
-        else if (text.startsWith('[MISS]')) result.classList.add('fail');
+      }
+
+      if (msg.command === 'showReview') {
+        userAnswerReview.textContent = String(msg.userAnswer ?? '');
+        explanationReview.textContent = String(msg.explanation ?? '');
+        reviewBox.classList.add('visible');
+        selfGradeActions.classList.add('visible');
+        gotItBtn.disabled = false;
+        missedItBtn.disabled = false;
+        result.className = 'result-box';
+        result.textContent = '';
+      }
+
+      if (msg.command === 'showSelfGrade') {
+        const got = Number(msg.gotItCount ?? 0);
+        const missed = Number(msg.missedItCount ?? 0);
+        const total = Number(msg.total ?? 0);
+        const latest = msg.result === 'got-it'
+          ? 'Last result: You marked this as got it.'
+          : msg.result === 'missed-it'
+            ? 'Last result: You marked this as missed it.'
+            : 'Progress reset.';
+
+        selfGradeStatus.textContent =
+          latest + '\n' +
+          'Got it: ' + got + ' | Missed it: ' + missed + ' | Total reviewed: ' + total;
+        selfGradeStatus.classList.add('visible');
+        gotItBtn.disabled = true;
+        missedItBtn.disabled = true;
       }
     });
   </script>

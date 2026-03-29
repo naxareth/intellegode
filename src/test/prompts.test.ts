@@ -16,15 +16,11 @@ suite('Prompt Builders', () => {
 		assert.ok(prompt.includes('without giving away the answer'));
 	});
 
-	test('buildEvaluatePrompt includes explicit label guidance', () => {
+	test('buildEvaluatePrompt requests explanation-only output', () => {
 		const prompt = buildEvaluatePrompt('code', 'question', 'answer');
-		assert.ok(prompt.includes('"[PASS]"'));
-		assert.ok(prompt.includes('[PARTIAL]'));
-		assert.ok(prompt.includes('[MISS]'));
-		assert.ok(prompt.includes('Returning only [PASS], [PARTIAL], or [MISS] with no explanation is not allowed.'));
-		assert.ok(prompt.includes('Compare the learner answer against the actual code and question only.'));
-		assert.ok(prompt.includes('If the user\'s answer contains the correct function name or key term and a reasonable description, always return [PASS].'));
-		assert.ok(prompt.includes('never use generic advice like "try again" or "refine your explanation"'));
-		assert.ok(prompt.includes('Never reveal full implementation details or unrelated domain examples.'));
+		assert.ok(prompt.includes('Do not grade the user answer'));
+		assert.ok(prompt.includes('Write a clear explanation in 2-3 concise sentences.'));
+		assert.ok(prompt.includes('Avoid unrelated domains'));
+		assert.ok(prompt.includes('Correct explanation:'));
 	});
 });
