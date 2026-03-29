@@ -401,7 +401,7 @@ export function getQuizWebviewHtml(question: string): string {
       }
       var ts = new Date().toLocaleTimeString();
       var next = '[' + ts + '] ' + message;
-      debugLog.textContent = next + '\n' + debugLog.textContent;
+      debugLog.textContent = next + '\\n' + debugLog.textContent;
     }
 
     function safeScrollIntoView(el) {
@@ -593,7 +593,7 @@ export function getQuizWebviewHtml(question: string): string {
         }
 
         if (selfGradeStatus) {
-          selfGradeStatus.textContent = latest + '\n' +
+          selfGradeStatus.textContent = latest + '\\n' +
             'Got it: ' + got + ' | Missed it: ' + missed + ' | Total reviewed: ' + total;
           selfGradeStatus.classList.add('visible');
         }
