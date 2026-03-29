@@ -138,15 +138,37 @@ function getQuizWebviewHtml(question: string): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Intellegode Quiz</title>
-  <style>
-    body { font-family: sans-serif; margin: 16px; line-height: 1.4; }
-    h2 { margin-top: 0; font-size: 1.1rem; }
-    .question { margin: 8px 0 14px; }
-    textarea { width: 100%; min-height: 90px; resize: vertical; }
-    button { margin-top: 10px; padding: 6px 12px; }
-    .muted { color: #888; margin-top: 8px; }
-    .result { margin-top: 14px; white-space: pre-wrap; }
-  </style>
+	<style>
+		body {
+			font-family: sans-serif;
+			margin: 16px;
+			line-height: 1.4;
+			background: var(--vscode-editor-background);
+			color: var(--vscode-editor-foreground);
+		}
+		h2 { margin-top: 0; font-size: 1.1rem; }
+		.question { margin: 8px 0 14px; }
+		textarea {
+			width: 100%;
+			min-height: 90px;
+			resize: vertical;
+			background: var(--vscode-input-background);
+			color: var(--vscode-input-foreground);
+		}
+		button {
+			margin-top: 10px;
+			padding: 6px 12px;
+			background: var(--vscode-button-background);
+			color: var(--vscode-button-foreground);
+			border: none;
+			cursor: pointer;
+		}
+		button:hover {
+			background: var(--vscode-button-hoverBackground);
+		}
+		.muted { color: var(--vscode-editor-foreground); opacity: 0.75; margin-top: 8px; }
+		.result { margin-top: 14px; white-space: pre-wrap; }
+	</style>
 </head>
 <body>
   <!-- Shows the generated comprehension question. -->
