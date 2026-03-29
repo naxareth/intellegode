@@ -393,14 +393,14 @@ export function getQuizWebviewHtml(question: string): string {
   <div class="debug-log" id="debugLog">[Intellegode] UI booting...</div>
 
   <script>
-    const debugLog = document.getElementById('debugLog');
+    var debugLog = document.getElementById('debugLog');
 
     function addDebugLog(message) {
       if (!debugLog) {
         return;
       }
-      const ts = new Date().toLocaleTimeString();
-      const next = '[' + ts + '] ' + message;
+      var ts = new Date().toLocaleTimeString();
+      var next = '[' + ts + '] ' + message;
       debugLog.textContent = next + '\n' + debugLog.textContent;
     }
 
@@ -410,12 +410,15 @@ export function getQuizWebviewHtml(question: string): string {
       }
       try {
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      } catch {
+      } catch (error) {
         el.scrollIntoView();
       }
     }
 
-    const vscode = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null;
+    var vscode = null;
+    if (typeof acquireVsCodeApi === 'function') {
+      vscode = acquireVsCodeApi();
+    }
     if (!vscode) {
       addDebugLog('acquireVsCodeApi unavailable; webview bridge not initialized.');
     } else {
@@ -431,72 +434,85 @@ export function getQuizWebviewHtml(question: string): string {
       vscode.postMessage(message);
     }
 
-    const submitBtn = document.getElementById('submit');
-    const hintBtn = document.getElementById('hintBtn');
-    const newQuestionBtn = document.getElementById('newQuestionBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    const answerInput = document.getElementById('answer');
-    const questionText = document.getElementById('questionText');
-    const hintBox = document.getElementById('hint');
-    const hintText = document.getElementById('hintText');
-    const loading = document.getElementById('loading');
-    const result = document.getElementById('result');
-    const reviewBox = document.getElementById('reviewBox');
-    const userAnswerReview = document.getElementById('userAnswerReview');
-    const explanationReview = document.getElementById('explanationReview');
-    const selfGradeActions = document.getElementById('selfGradeActions');
-    const selfGradeStatus = document.getElementById('selfGradeStatus');
-    const gotItBtn = document.getElementById('gotItBtn');
-    const missedItBtn = document.getElementById('missedItBtn');
+    var submitBtn = document.getElementById('submit');
+    var hintBtn = document.getElementById('hintBtn');
+    var newQuestionBtn = document.getElementById('newQuestionBtn');
+    var resetBtn = document.getElementById('resetBtn');
+    var answerInput = document.getElementById('answer');
+    var questionText = document.getElementById('questionText');
+    var hintBox = document.getElementById('hint');
+    var hintText = document.getElementById('hintText');
+    var loading = document.getElementById('loading');
+    var result = document.getElementById('result');
+    var reviewBox = document.getElementById('reviewBox');
+    var userAnswerReview = document.getElementById('userAnswerReview');
+    var explanationReview = document.getElementById('explanationReview');
+    var selfGradeActions = document.getElementById('selfGradeActions');
+    var selfGradeStatus = document.getElementById('selfGradeStatus');
+    var gotItBtn = document.getElementById('gotItBtn');
+    var missedItBtn = document.getElementById('missedItBtn');
 
     if (!submitBtn || !hintBtn || !newQuestionBtn || !resetBtn || !answerInput) {
       addDebugLog('Critical UI elements are missing; buttons may not respond.');
     }
 
-    submitBtn?.addEventListener('click', () => {
-      addDebugLog('Click: submit');
-      reviewBox?.classList.remove('visible');
-      selfGradeActions?.classList.remove('visible');
-      if (result) {
-        result.className = 'result-box visible';
-        result.textContent = 'Generating explanation...';
-        safeScrollIntoView(result);
-      }
-      postToExtension({ command: 'submitAnswer', answer: answerInput?.value.trim() });
-    });
+    if (submitBtn) {
+      submitBtn.addEventListener('click', function () {
+        addDebugLog('Click: submit');
+        if (reviewBox) reviewBox.classList.remove('visible');
+        if (selfGradeActions) selfGradeActions.classList.remove('visible');
+        if (result) {
+          result.className = 'result-box visible';
+          result.textContent = 'Generating explanation...';
+          safeScrollIntoView(result);
+        }
+        var answer = answerInput ? answerInput.value.trim() : '';
+        postToExtension({ command: 'submitAnswer', answer: answer });
+      });
+    }
 
-    hintBtn?.addEventListener('click', () => {
-      addDebugLog('Click: requestHint');
-      postToExtension({ command: 'requestHint' });
-    });
+    if (hintBtn) {
+      hintBtn.addEventListener('click', function () {
+        addDebugLog('Click: requestHint');
+        postToExtension({ command: 'requestHint' });
+      });
+    }
 
-    newQuestionBtn?.addEventListener('click', () => {
-      addDebugLog('Click: newQuestion');
-      postToExtension({ command: 'newQuestion' });
-    });
+    if (newQuestionBtn) {
+      newQuestionBtn.addEventListener('click', function () {
+        addDebugLog('Click: newQuestion');
+        postToExtension({ command: 'newQuestion' });
+      });
+    }
 
-    resetBtn?.addEventListener('click', () => {
-      addDebugLog('Click: resetQuiz');
-      postToExtension({ command: 'resetQuiz' });
-    });
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        addDebugLog('Click: resetQuiz');
+        postToExtension({ command: 'resetQuiz' });
+      });
+    }
 
-    gotItBtn?.addEventListener('click', () => {
-      addDebugLog('Click: selfGrade got-it');
-      postToExtension({ command: 'selfGrade', result: 'got-it' });
-    });
+    if (gotItBtn) {
+      gotItBtn.addEventListener('click', function () {
+        addDebugLog('Click: selfGrade got-it');
+        postToExtension({ command: 'selfGrade', result: 'got-it' });
+      });
+    }
 
-    missedItBtn?.addEventListener('click', () => {
-      addDebugLog('Click: selfGrade missed-it');
-      postToExtension({ command: 'selfGrade', result: 'missed-it' });
-    });
+    if (missedItBtn) {
+      missedItBtn.addEventListener('click', function () {
+        addDebugLog('Click: selfGrade missed-it');
+        postToExtension({ command: 'selfGrade', result: 'missed-it' });
+      });
+    }
 
-    window.addEventListener('message', (event) => {
-      const msg = event.data;
-      addDebugLog('Received: ' + String(msg.command ?? 'unknown'));
+    window.addEventListener('message', function (event) {
+      var msg = event.data || {};
+      addDebugLog('Received: ' + String(msg.command || 'unknown'));
 
       if (msg.command === 'setLoading') {
-        const on = Boolean(msg.loading);
-        loading?.classList.toggle('visible', on);
+        var on = Boolean(msg.loading);
+        if (loading) loading.classList.toggle('visible', on);
         if (on) {
           safeScrollIntoView(loading);
         }
@@ -508,13 +524,13 @@ export function getQuizWebviewHtml(question: string): string {
       }
 
       if (msg.command === 'updateQuestion') {
-        if (questionText) questionText.textContent = String(msg.question ?? '');
+        if (questionText) questionText.textContent = String(msg.question || '');
         if (answerInput) answerInput.value = '';
         if (hintText) hintText.textContent = '';
-        hintBox?.classList.remove('visible');
-        reviewBox?.classList.remove('visible');
-        selfGradeActions?.classList.remove('visible');
-        selfGradeStatus?.classList.remove('visible');
+        if (hintBox) hintBox.classList.remove('visible');
+        if (reviewBox) reviewBox.classList.remove('visible');
+        if (selfGradeActions) selfGradeActions.classList.remove('visible');
+        if (selfGradeStatus) selfGradeStatus.classList.remove('visible');
         if (selfGradeStatus) selfGradeStatus.textContent = '';
         if (result) {
           result.textContent = '';
@@ -525,10 +541,10 @@ export function getQuizWebviewHtml(question: string): string {
       if (msg.command === 'resetQuiz') {
         if (answerInput) answerInput.value = '';
         if (hintText) hintText.textContent = '';
-        hintBox?.classList.remove('visible');
-        reviewBox?.classList.remove('visible');
-        selfGradeActions?.classList.remove('visible');
-        selfGradeStatus?.classList.remove('visible');
+        if (hintBox) hintBox.classList.remove('visible');
+        if (reviewBox) reviewBox.classList.remove('visible');
+        if (selfGradeActions) selfGradeActions.classList.remove('visible');
+        if (selfGradeStatus) selfGradeStatus.classList.remove('visible');
         if (selfGradeStatus) selfGradeStatus.textContent = '';
         if (result) {
           result.textContent = '';
@@ -537,12 +553,12 @@ export function getQuizWebviewHtml(question: string): string {
       }
 
       if (msg.command === 'showHint') {
-        if (hintText) hintText.textContent = msg.hint ?? '';
-        hintBox?.classList.add('visible');
+        if (hintText) hintText.textContent = msg.hint || '';
+        if (hintBox) hintBox.classList.add('visible');
       }
 
       if (msg.command === 'showResult') {
-        const text = String(msg.result ?? '');
+        var text = String(msg.result || '');
         if (result) {
           result.textContent = text;
           result.classList.add('visible');
@@ -552,10 +568,10 @@ export function getQuizWebviewHtml(question: string): string {
       }
 
       if (msg.command === 'showReview') {
-        if (userAnswerReview) userAnswerReview.textContent = String(msg.userAnswer ?? '');
-        if (explanationReview) explanationReview.textContent = String(msg.explanation ?? '');
-        reviewBox?.classList.add('visible');
-        selfGradeActions?.classList.add('visible');
+        if (userAnswerReview) userAnswerReview.textContent = String(msg.userAnswer || '');
+        if (explanationReview) explanationReview.textContent = String(msg.explanation || '');
+        if (reviewBox) reviewBox.classList.add('visible');
+        if (selfGradeActions) selfGradeActions.classList.add('visible');
         if (gotItBtn) gotItBtn.disabled = false;
         if (missedItBtn) missedItBtn.disabled = false;
         if (result) {
@@ -566,18 +582,18 @@ export function getQuizWebviewHtml(question: string): string {
       }
 
       if (msg.command === 'showSelfGrade') {
-        const got = Number(msg.gotItCount ?? 0);
-        const missed = Number(msg.missedItCount ?? 0);
-        const total = Number(msg.total ?? 0);
-        const latest = msg.result === 'got-it'
-          ? 'Last result: You marked this as got it.'
-          : msg.result === 'missed-it'
-            ? 'Last result: You marked this as missed it.'
-            : 'Progress reset.';
+        var got = Number(msg.gotItCount || 0);
+        var missed = Number(msg.missedItCount || 0);
+        var total = Number(msg.total || 0);
+        var latest = 'Progress reset.';
+        if (msg.result === 'got-it') {
+          latest = 'Last result: You marked this as got it.';
+        } else if (msg.result === 'missed-it') {
+          latest = 'Last result: You marked this as missed it.';
+        }
 
         if (selfGradeStatus) {
-          selfGradeStatus.textContent =
-            latest + '\n' +
+          selfGradeStatus.textContent = latest + '\n' +
             'Got it: ' + got + ' | Missed it: ' + missed + ' | Total reviewed: ' + total;
           selfGradeStatus.classList.add('visible');
         }
