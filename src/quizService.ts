@@ -18,8 +18,13 @@ export async function generateQuizQuestion(selectedCode: string, ollamaCaller: O
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
-	const result = await ollamaCaller(buildHintPrompt(code, question), undefined, 55, 15000);
-	return result || 'No hint was generated.';
+	const first = await ollamaCaller(buildHintPrompt(code, question), undefined, 120, 18000);
+	if (first && looksComplete(first)) {
+		return first;
+	}
+
+	const second = await ollamaCaller(buildHintPrompt(code, question), undefined, 180, 22000);
+	return second || first || 'No hint was generated.';
 }
 
 export async function evaluateAnswer(
@@ -29,20 +34,20 @@ export async function evaluateAnswer(
 	model: string = 'qwen3:4b',
 	ollamaCaller: OllamaCallerWithModel = callOllama
 ): Promise<string> {
-	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer), model, 70, 18000);
+	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer), model, 140, 22000);
 	const normalizedInitial = normalizeEvaluationOutput(initial);
 	if (normalizedInitial && isContextuallyRelevant(normalizedInitial, question, answer)) {
 		return normalizedInitial;
 	}
 
 	// Retry once by asking Ollama to rewrite malformed output to the required format.
-	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer), model, 70, 18000);
+	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer), model, 160, 24000);
 	const normalizedRepaired = normalizeEvaluationOutput(repaired);
 	if (normalizedRepaired && isContextuallyRelevant(normalizedRepaired, question, answer)) {
 		return normalizedRepaired;
 	}
 
-	return '[PARTIAL] You captured part of the idea because your answer points in the right direction. You missed at least one key component of what the code is doing.';
+	return `[PARTIAL] You captured part of the main idea because your explanation aligns with the question's core concept. You missed at least one important detail needed for a complete explanation of "${question}".`;
 }
 
 export function normalizeEvaluationOutput(raw: string): string | null {
@@ -120,4 +125,9 @@ function extractKeyTerms(text: string): Set<string> {
 		.filter((token) => token.length >= 4 && !stopWords.has(token));
 
 	return new Set(tokens);
+}
+
+function looksComplete(text: string): boolean {
+	const trimmed = text.trim();
+	return /[.!?]$/.test(trimmed);
 }
