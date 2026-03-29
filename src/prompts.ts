@@ -64,3 +64,17 @@ export function buildEvaluatePrompt(code: string, question: string, answer: stri
 		answer
 	].join('\n');
 }
+
+export function buildEvaluationRepairPrompt(rawOutput: string): string {
+	return [
+		'Rewrite the feedback into the exact required format.',
+		'Required format: [PASS] or [PARTIAL] or [MISS], followed by explanatory text on the same line.',
+		'Never return only the label.',
+		'Speak in second person ("You ...").',
+		'Keep feedback concise, maximum 2 sentences.',
+		'Never reveal implementation details or full solution.',
+		'',
+		'Original feedback:',
+		rawOutput
+	].join('\n');
+}

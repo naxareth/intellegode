@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
-import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizService';
-import { QuizWebviewMessage } from './types';
-import { getQuizWebviewHtml } from './quizWebview';
+import { startQuizSession } from './quizController';
 
 // This method is called when your extension is activated.
 export function activate(context: vscode.ExtensionContext) {
@@ -21,8 +19,6 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		try {
-			let currentQuestion = await generateQuizQuestion(selectedCode);
-
 			const panel = vscode.window.createWebviewPanel(
 				'intellegodeQuizPanel',
 				'Intellegode Quiz',
@@ -30,68 +26,7 @@ export function activate(context: vscode.ExtensionContext) {
 				{ enableScripts: true }
 			);
 
-			panel.webview.html = getQuizWebviewHtml(currentQuestion);
-
-			// The extension host orchestrates quiz actions and delegates business logic.
-			panel.webview.onDidReceiveMessage(async (message: QuizWebviewMessage) => {
-				if (message.command === 'submitAnswer') {
-					const userAnswer = String(message.answer ?? '').trim();
-					if (!userAnswer) {
-						panel.webview.postMessage({
-							command: 'showResult',
-							result: 'Please enter an answer before submitting.'
-						});
-						return;
-					}
-
-					panel.webview.postMessage({ command: 'setLoading', loading: true });
-					try {
-						const evaluation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer);
-						panel.webview.postMessage({ command: 'showResult', result: evaluation });
-					} catch (error) {
-						const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-						panel.webview.postMessage({ command: 'showResult', result: `Error: ${errorMessage}` });
-					} finally {
-						panel.webview.postMessage({ command: 'setLoading', loading: false });
-					}
-					return;
-				}
-
-				if (message.command === 'requestHint') {
-					panel.webview.postMessage({ command: 'setLoading', loading: true });
-					try {
-						const hint = await generateHint(selectedCode, currentQuestion);
-						panel.webview.postMessage({ command: 'showHint', hint });
-					} catch (error) {
-						const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-						panel.webview.postMessage({ command: 'showHint', hint: `Hint error: ${errorMessage}` });
-					} finally {
-						panel.webview.postMessage({ command: 'setLoading', loading: false });
-					}
-					return;
-				}
-
-				if (message.command === 'newQuestion') {
-					panel.webview.postMessage({ command: 'setLoading', loading: true });
-					try {
-						currentQuestion = await generateQuizQuestion(selectedCode);
-						panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
-					} catch (error) {
-						const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-						panel.webview.postMessage({
-							command: 'showResult',
-							result: `[MISS] You could not get a new question because ${errorMessage}.`
-						});
-					} finally {
-						panel.webview.postMessage({ command: 'setLoading', loading: false });
-					}
-					return;
-				}
-
-				if (message.command === 'resetQuiz') {
-					panel.webview.postMessage({ command: 'resetQuiz' });
-				}
-			});
+			await startQuizSession(panel, selectedCode);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 			vscode.window.showErrorMessage(`Intellegode failed: ${errorMessage}`);
