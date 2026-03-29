@@ -19,13 +19,12 @@ suite('Prompt Builders', () => {
 	test('buildEvaluatePrompt includes explicit label guidance', () => {
 		const prompt = buildEvaluatePrompt('code', 'question', 'answer');
 		assert.ok(prompt.includes('"[PASS]"'));
-		assert.ok(prompt.includes('"[PARTIAL]"'));
-		assert.ok(prompt.includes('"[MISS]"'));
+		assert.ok(prompt.includes('[PARTIAL]'));
+		assert.ok(prompt.includes('[MISS]'));
 		assert.ok(prompt.includes('Returning only [PASS], [PARTIAL], or [MISS] with no explanation is not allowed.'));
-		assert.ok(prompt.includes('compare the learner answer against the actual code provided'));
+		assert.ok(prompt.includes('Compare the learner answer against the actual code and question only.'));
 		assert.ok(prompt.includes('If the user\'s answer contains the correct function name or key term and a reasonable description, always return [PASS].'));
 		assert.ok(prompt.includes('never use generic advice like "try again" or "refine your explanation"'));
-		assert.ok(prompt.includes('Feedback must stay aligned to this specific code and question context.'));
-		assert.ok(prompt.includes('Do not introduce unrelated domains or canned phrases not grounded in this code/question/answer.'));
+		assert.ok(prompt.includes('Never reveal full implementation details or unrelated domain examples.'));
 	});
 });

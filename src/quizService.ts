@@ -6,19 +6,19 @@ import {
 	buildQuizQuestionPrompt
 } from './prompts';
 
-export type OllamaCaller = (prompt: string) => Promise<string>;
-export type OllamaCallerWithModel = (prompt: string, model?: string) => Promise<string>;
+export type OllamaCaller = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number) => Promise<string>;
+export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number) => Promise<string>;
 
 const LABEL_PREFIX = /^(\[PASS\]|\[PARTIAL\]|\[MISS\])\s+/;
 const LEGACY_LABEL_PREFIX = /^(✅\s*Got it|⚠️\s*Partially right|❌\s*Not quite)\s*/;
 
 export async function generateQuizQuestion(selectedCode: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
-	const result = await ollamaCaller(buildQuizQuestionPrompt(selectedCode));
+	const result = await ollamaCaller(buildQuizQuestionPrompt(selectedCode), undefined, 60, 15000);
 	return result || 'No question was generated.';
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
-	const result = await ollamaCaller(buildHintPrompt(code, question));
+	const result = await ollamaCaller(buildHintPrompt(code, question), undefined, 55, 15000);
 	return result || 'No hint was generated.';
 }
 
@@ -29,14 +29,14 @@ export async function evaluateAnswer(
 	model: string = 'qwen3:4b',
 	ollamaCaller: OllamaCallerWithModel = callOllama
 ): Promise<string> {
-	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer), model);
+	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer), model, 70, 18000);
 	const normalizedInitial = normalizeEvaluationOutput(initial);
 	if (normalizedInitial && isContextuallyRelevant(normalizedInitial, question, answer)) {
 		return normalizedInitial;
 	}
 
 	// Retry once by asking Ollama to rewrite malformed output to the required format.
-	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer), model);
+	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer), model, 70, 18000);
 	const normalizedRepaired = normalizeEvaluationOutput(repaired);
 	if (normalizedRepaired && isContextuallyRelevant(normalizedRepaired, question, answer)) {
 		return normalizedRepaired;
