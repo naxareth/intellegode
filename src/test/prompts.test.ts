@@ -25,5 +25,7 @@ suite('Prompt Builders', () => {
 		assert.ok(prompt.includes('compare the learner answer against the actual code provided'));
 		assert.ok(prompt.includes('If the user\'s answer contains the correct function name or key term and a reasonable description, always return [PASS].'));
 		assert.ok(prompt.includes('never use generic advice like "try again" or "refine your explanation"'));
+		assert.ok(prompt.includes('Feedback must stay aligned to this specific code and question context.'));
+		assert.ok(prompt.includes('Do not introduce unrelated domains or canned phrases not grounded in this code/question/answer.'));
 	});
 });

@@ -1,5 +1,10 @@
 import * as assert from 'assert';
-import { evaluateAnswer, isValidEvaluationOutput, normalizeEvaluationOutput } from '../quizService';
+import {
+	evaluateAnswer,
+	isContextuallyRelevant,
+	isValidEvaluationOutput,
+	normalizeEvaluationOutput
+} from '../quizService';
 
 suite('Quiz Service', () => {
 	test('normalizeEvaluationOutput maps legacy emoji labels', () => {
@@ -27,10 +32,43 @@ suite('Quiz Service', () => {
 		assert.strictEqual(calls.length, 2);
 	});
 
+	test('evaluateAnswer retries when first response is unrelated to question', async () => {
+		const calls: string[] = [];
+		const fakeCaller = async (prompt: string): Promise<string> => {
+			calls.push(prompt);
+			if (calls.length === 1) {
+				return '[PASS] You recognized this is a permission check because it limits who can execute this step.';
+			}
+			return '[PASS] You described the velocity calculation because you explained how multiple signals are blended.';
+		};
+
+		const question = 'How is velocityScore calculated?';
+		const answer = 'It blends slope, volume, and recency.';
+		const result = await evaluateAnswer('code', question, answer, fakeCaller);
+		assert.ok(result.includes('velocity'));
+		assert.strictEqual(calls.length, 2);
+	});
+
 	test('evaluateAnswer returns safe fallback when malformed twice', async () => {
 		const fakeCaller = async (): Promise<string> => '[PARTIAL]';
 		const result = await evaluateAnswer('code', 'question', 'answer', fakeCaller);
 		assert.ok(result.startsWith('[PARTIAL]'));
 		assert.ok(result.includes('because'));
+	});
+
+	test('isContextuallyRelevant requires at least one key-term overlap', () => {
+		const relevant = isContextuallyRelevant(
+			'[PASS] You explained velocity because you described how slope and volume are combined.',
+			'How is velocityScore calculated?',
+			'It blends slope and volume.'
+		);
+		const unrelated = isContextuallyRelevant(
+			'[PASS] You identified a permission check because this controls access.',
+			'How is velocityScore calculated?',
+			'It blends slope and volume.'
+		);
+
+		assert.strictEqual(relevant, true);
+		assert.strictEqual(unrelated, false);
 	});
 });

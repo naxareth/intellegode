@@ -29,18 +29,18 @@ export async function evaluateAnswer(
 ): Promise<string> {
 	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer));
 	const normalizedInitial = normalizeEvaluationOutput(initial);
-	if (normalizedInitial) {
+	if (normalizedInitial && isContextuallyRelevant(normalizedInitial, question, answer)) {
 		return normalizedInitial;
 	}
 
 	// Retry once by asking Ollama to rewrite malformed output to the required format.
-	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial));
+	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer));
 	const normalizedRepaired = normalizeEvaluationOutput(repaired);
-	if (normalizedRepaired) {
+	if (normalizedRepaired && isContextuallyRelevant(normalizedRepaired, question, answer)) {
 		return normalizedRepaired;
 	}
 
-	return '[PARTIAL] You showed some understanding because you engaged with the core idea, but refine your explanation and try again.';
+	return '[PARTIAL] You captured part of the idea because your answer points in the right direction. You missed at least one key component of what the code is doing.';
 }
 
 export function normalizeEvaluationOutput(raw: string): string | null {
@@ -83,4 +83,39 @@ export function isValidEvaluationOutput(text: string): boolean {
 	}
 
 	return true;
+}
+
+export function isContextuallyRelevant(feedback: string, question: string, answer: string): boolean {
+	const feedbackTerms = extractKeyTerms(feedback);
+	const contextTerms = new Set([...extractKeyTerms(question), ...extractKeyTerms(answer)]);
+
+	if (feedbackTerms.size === 0 || contextTerms.size === 0) {
+		return true;
+	}
+
+	let overlap = 0;
+	for (const term of feedbackTerms) {
+		if (contextTerms.has(term)) {
+			overlap += 1;
+		}
+	}
+
+	return overlap >= 1;
+}
+
+function extractKeyTerms(text: string): Set<string> {
+	const stopWords = new Set([
+		'the', 'this', 'that', 'with', 'from', 'your', 'you', 'about', 'into', 'what', 'when', 'where', 'which',
+		'because', 'would', 'could', 'should', 'their', 'there', 'these', 'those', 'have', 'has', 'were', 'been',
+		'for', 'and', 'are', 'not', 'but', 'all', 'any', 'one', 'two', 'step', 'code', 'idea', 'part', 'main'
+	]);
+
+	const tokens = text
+		.toLowerCase()
+		.replace(/\[[^\]]+\]/g, ' ')
+		.replace(/[^a-z0-9_\s]/g, ' ')
+		.split(/\s+/)
+		.filter((token) => token.length >= 4 && !stopWords.has(token));
+
+	return new Set(tokens);
 }
