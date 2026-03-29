@@ -24,7 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 		try {
 			// Generate one comprehension question from the selected code.
-			const question = await generateQuizQuestion(selectedCode);
+      let currentQuestion = await generateQuizQuestion(selectedCode);
 
 			// Open a webview panel beside the editor.
 			const panel = vscode.window.createWebviewPanel(
@@ -35,11 +35,11 @@ export function activate(context: vscode.ExtensionContext) {
 			);
 
 			// Render the initial question UI.
-			panel.webview.html = getQuizWebviewHtml(question);
+      panel.webview.html = getQuizWebviewHtml(currentQuestion);
 
-			// Handle answer submissions and hint requests from the webview.
+      // Handle answer submissions and quiz control actions from the webview.
 			panel.webview.onDidReceiveMessage(async (message) => {
-				if (message.command === 'submitAnswer') {
+        if (message.command === 'submitAnswer') {
 					const userAnswer = String(message.answer ?? '').trim();
 					if (!userAnswer) {
 						panel.webview.postMessage({
@@ -51,7 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 					panel.webview.postMessage({ command: 'setLoading', loading: true });
 					try {
-						const evaluation = await evaluateAnswer(selectedCode, question, userAnswer);
+            const evaluation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer);
 						panel.webview.postMessage({ command: 'showResult', result: evaluation });
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -65,7 +65,7 @@ export function activate(context: vscode.ExtensionContext) {
 				if (message.command === 'requestHint') {
 					panel.webview.postMessage({ command: 'setLoading', loading: true });
 					try {
-						const hint = await generateHint(selectedCode, question);
+            const hint = await generateHint(selectedCode, currentQuestion);
 						panel.webview.postMessage({ command: 'showHint', hint });
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -73,6 +73,25 @@ export function activate(context: vscode.ExtensionContext) {
 					} finally {
 						panel.webview.postMessage({ command: 'setLoading', loading: false });
 					}
+          return;
+        }
+
+        if (message.command === 'newQuestion') {
+          panel.webview.postMessage({ command: 'setLoading', loading: true });
+          try {
+            currentQuestion = await generateQuizQuestion(selectedCode);
+            panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            panel.webview.postMessage({ command: 'showResult', result: `[MISS] You could not get a new question because ${errorMessage}.` });
+          } finally {
+            panel.webview.postMessage({ command: 'setLoading', loading: false });
+          }
+          return;
+        }
+
+        if (message.command === 'resetQuiz') {
+          panel.webview.postMessage({ command: 'resetQuiz' });
 				}
 			});
 		} catch (error) {
@@ -363,6 +382,18 @@ function getQuizWebviewHtml(question: string): string {
       background: rgba(188,140,255,0.25);
     }
 
+    #newQuestionBtn,
+    #resetBtn {
+      background: rgba(255,255,255,0.08);
+      color: var(--vscode-editor-foreground, #e6edf3);
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+
+    #newQuestionBtn:hover,
+    #resetBtn:hover {
+      background: rgba(255,255,255,0.14);
+    }
+
     button:disabled {
       opacity: 0.4;
       cursor: default;
@@ -426,7 +457,7 @@ function getQuizWebviewHtml(question: string): string {
 
   <div class="question-card">
     <div class="question-label">▸ Comprehension Check</div>
-    <div class="question-text">${escapeHtml(question)}</div>
+    <div class="question-text" id="questionText">${escapeHtml(question)}</div>
   </div>
 
   <div class="hint-box" id="hint">
@@ -440,6 +471,8 @@ function getQuizWebviewHtml(question: string): string {
   <div class="actions">
     <button id="submit">Submit</button>
     <button id="hintBtn">Give me a hint</button>
+    <button id="newQuestionBtn">New question</button>
+    <button id="resetBtn">Reset</button>
   </div>
 
   <div class="loading" id="loading">Thinking...</div>
@@ -449,7 +482,10 @@ function getQuizWebviewHtml(question: string): string {
     const vscode = acquireVsCodeApi();
     const submitBtn = document.getElementById('submit');
     const hintBtn = document.getElementById('hintBtn');
+    const newQuestionBtn = document.getElementById('newQuestionBtn');
+    const resetBtn = document.getElementById('resetBtn');
     const answerInput = document.getElementById('answer');
+    const questionText = document.getElementById('questionText');
     const hintBox = document.getElementById('hint');
     const hintText = document.getElementById('hintText');
     const loading = document.getElementById('loading');
@@ -463,6 +499,14 @@ function getQuizWebviewHtml(question: string): string {
       vscode.postMessage({ command: 'requestHint' });
     });
 
+    newQuestionBtn.addEventListener('click', () => {
+      vscode.postMessage({ command: 'newQuestion' });
+    });
+
+    resetBtn.addEventListener('click', () => {
+      vscode.postMessage({ command: 'resetQuiz' });
+    });
+
     window.addEventListener('message', (event) => {
       const msg = event.data;
 
@@ -471,7 +515,26 @@ function getQuizWebviewHtml(question: string): string {
         loading.classList.toggle('visible', on);
         submitBtn.disabled = on;
         hintBtn.disabled = on;
+        newQuestionBtn.disabled = on;
+        resetBtn.disabled = on;
         answerInput.disabled = on;
+      }
+
+      if (msg.command === 'updateQuestion') {
+        questionText.textContent = String(msg.question ?? '');
+        answerInput.value = '';
+        hintText.textContent = '';
+        hintBox.classList.remove('visible');
+        result.textContent = '';
+        result.className = 'result-box';
+      }
+
+      if (msg.command === 'resetQuiz') {
+        answerInput.value = '';
+        hintText.textContent = '';
+        hintBox.classList.remove('visible');
+        result.textContent = '';
+        result.className = 'result-box';
       }
 
       if (msg.command === 'showHint') {
