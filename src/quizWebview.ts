@@ -397,6 +397,11 @@ export function getQuizWebviewHtml(question: string): string {
     const missedItBtn = document.getElementById('missedItBtn');
 
     submitBtn.addEventListener('click', () => {
+      reviewBox.classList.remove('visible');
+      selfGradeActions.classList.remove('visible');
+      result.className = 'result-box visible';
+      result.textContent = 'Generating explanation...';
+      result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       vscode.postMessage({ command: 'submitAnswer', answer: answerInput.value.trim() });
     });
 
@@ -426,6 +431,9 @@ export function getQuizWebviewHtml(question: string): string {
       if (msg.command === 'setLoading') {
         const on = Boolean(msg.loading);
         loading.classList.toggle('visible', on);
+        if (on) {
+          loading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         submitBtn.disabled = on;
         hintBtn.disabled = on;
         newQuestionBtn.disabled = on;
@@ -468,6 +476,7 @@ export function getQuizWebviewHtml(question: string): string {
         result.textContent = text;
         result.classList.add('visible');
         result.className = 'result-box visible';
+        result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
 
       if (msg.command === 'showReview') {
@@ -479,6 +488,7 @@ export function getQuizWebviewHtml(question: string): string {
         missedItBtn.disabled = false;
         result.className = 'result-box';
         result.textContent = '';
+        reviewBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
 
       if (msg.command === 'showSelfGrade') {
