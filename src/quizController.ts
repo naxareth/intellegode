@@ -3,7 +3,11 @@ import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizServic
 import { QuizWebviewMessage } from './types';
 import { getQuizWebviewHtml } from './quizWebview';
 
-export async function startQuizSession(panel: vscode.WebviewPanel, selectedCode: string): Promise<void> {
+export async function startQuizSession(
+	panel: vscode.WebviewPanel,
+	selectedCode: string,
+	evaluatorModel: string
+): Promise<void> {
 	let currentQuestion = await generateQuizQuestion(selectedCode);
 	panel.webview.html = getQuizWebviewHtml(currentQuestion);
 
@@ -21,7 +25,7 @@ export async function startQuizSession(panel: vscode.WebviewPanel, selectedCode:
 
 			panel.webview.postMessage({ command: 'setLoading', loading: true });
 			try {
-				const evaluation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer);
+				const evaluation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer, evaluatorModel);
 				panel.webview.postMessage({ command: 'showResult', result: evaluation });
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';

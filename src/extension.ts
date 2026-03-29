@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { startQuizSession } from './quizController';
 
+const EVALUATOR_MODEL = 'qwen3:4b';
+
 // This method is called when your extension is activated.
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Intellegode is now active.');
@@ -26,7 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
 				{ enableScripts: true }
 			);
 
-			await startQuizSession(panel, selectedCode);
+			await startQuizSession(panel, selectedCode, EVALUATOR_MODEL);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 			vscode.window.showErrorMessage(`Intellegode failed: ${errorMessage}`);

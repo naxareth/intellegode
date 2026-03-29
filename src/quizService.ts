@@ -7,6 +7,7 @@ import {
 } from './prompts';
 
 export type OllamaCaller = (prompt: string) => Promise<string>;
+export type OllamaCallerWithModel = (prompt: string, model?: string) => Promise<string>;
 
 const LABEL_PREFIX = /^(\[PASS\]|\[PARTIAL\]|\[MISS\])\s+/;
 const LEGACY_LABEL_PREFIX = /^(✅\s*Got it|⚠️\s*Partially right|❌\s*Not quite)\s*/;
@@ -25,16 +26,17 @@ export async function evaluateAnswer(
 	code: string,
 	question: string,
 	answer: string,
-	ollamaCaller: OllamaCaller = callOllama
+	model: string = 'qwen3:4b',
+	ollamaCaller: OllamaCallerWithModel = callOllama
 ): Promise<string> {
-	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer));
+	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer), model);
 	const normalizedInitial = normalizeEvaluationOutput(initial);
 	if (normalizedInitial && isContextuallyRelevant(normalizedInitial, question, answer)) {
 		return normalizedInitial;
 	}
 
 	// Retry once by asking Ollama to rewrite malformed output to the required format.
-	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer));
+	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer), model);
 	const normalizedRepaired = normalizeEvaluationOutput(repaired);
 	if (normalizedRepaired && isContextuallyRelevant(normalizedRepaired, question, answer)) {
 		return normalizedRepaired;

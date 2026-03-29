@@ -24,10 +24,16 @@ suite('Quiz Service', () => {
 			if (calls.length === 1) {
 				return '[PASS]';
 			}
-			return '[PASS] You identified the key concept because you explained the purpose of access control.';
+			return '[PASS] You identified the key concept because you explained the permission check for access control.';
 		};
 
-		const result = await evaluateAnswer('code', 'question', 'answer', fakeCaller);
+		const result = await evaluateAnswer(
+			'code',
+			'What is the purpose of this permission check?',
+			'It is a permission check for access control.',
+			'qwen3:4b',
+			fakeCaller
+		);
 		assert.ok(result.startsWith('[PASS]'));
 		assert.strictEqual(calls.length, 2);
 	});
@@ -39,19 +45,19 @@ suite('Quiz Service', () => {
 			if (calls.length === 1) {
 				return '[PASS] You recognized this is a permission check because it limits who can execute this step.';
 			}
-			return '[PASS] You described the velocity calculation because you explained how multiple signals are blended.';
+			return '[PASS] You described the velocity score because you explained how slope and volume are blended.';
 		};
 
 		const question = 'How is velocityScore calculated?';
 		const answer = 'It blends slope, volume, and recency.';
-		const result = await evaluateAnswer('code', question, answer, fakeCaller);
+		const result = await evaluateAnswer('code', question, answer, 'qwen3:4b', fakeCaller);
 		assert.ok(result.includes('velocity'));
 		assert.strictEqual(calls.length, 2);
 	});
 
 	test('evaluateAnswer returns safe fallback when malformed twice', async () => {
 		const fakeCaller = async (): Promise<string> => '[PARTIAL]';
-		const result = await evaluateAnswer('code', 'question', 'answer', fakeCaller);
+		const result = await evaluateAnswer('code', 'question', 'answer', 'qwen3:4b', fakeCaller);
 		assert.ok(result.startsWith('[PARTIAL]'));
 		assert.ok(result.includes('because'));
 	});
