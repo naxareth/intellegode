@@ -31,14 +31,14 @@ export async function evaluateAnswer(
 	model: string = 'qwen3:4b',
 	ollamaCaller: OllamaCallerWithModel = callOllama
 ): Promise<string> {
-	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer), model, 300, 22000);
+	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer), model, 300, 45000);
 	const normalizedInitial = normalizeExplanationOutput(initial);
 	if (normalizedInitial && isContextuallyRelevant(normalizedInitial, question, answer)) {
 		return normalizedInitial;
 	}
 
 	// Retry once by asking Ollama to rewrite malformed output to a concise explanation.
-	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer), model, 300, 24000);
+	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer), model, 300, 50000);
 	const normalizedRepaired = normalizeExplanationOutput(repaired);
 	if (normalizedRepaired && isContextuallyRelevant(normalizedRepaired, question, answer)) {
 		return normalizedRepaired;
