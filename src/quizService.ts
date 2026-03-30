@@ -9,18 +9,23 @@ import {
 export type OllamaCaller = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number) => Promise<string>;
 export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number) => Promise<string>;
 
+const QUIZ_QUESTION_TIMEOUT_MS = 60000;
+const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 18000;
+const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 22000;
+
 export async function generateQuizQuestion(selectedCode: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
-	const result = await ollamaCaller(buildQuizQuestionPrompt(selectedCode), undefined, 60, 15000);
+	// First request can include model cold-start, so keep this timeout more forgiving.
+	const result = await ollamaCaller(buildQuizQuestionPrompt(selectedCode), undefined, 60, QUIZ_QUESTION_TIMEOUT_MS);
 	return result || 'No question was generated.';
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
-	const first = await ollamaCaller(buildHintPrompt(code, question), undefined, 120, 18000);
+	const first = await ollamaCaller(buildHintPrompt(code, question), undefined, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS);
 	if (first && looksComplete(first)) {
 		return first;
 	}
 
-	const second = await ollamaCaller(buildHintPrompt(code, question), undefined, 180, 22000);
+	const second = await ollamaCaller(buildHintPrompt(code, question), undefined, 180, HINT_SECOND_ATTEMPT_TIMEOUT_MS);
 	return second || first || 'No hint was generated.';
 }
 

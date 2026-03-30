@@ -14,7 +14,7 @@ Intellegode is a VS Code extension that uses a local LLM to quiz you on code you
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) v18+
-- [Docker](https://www.docker.com/) (for Ollama)
+- [Ollama](https://ollama.com/) installed locally or [Docker](https://www.docker.com/) (for Ollama)
 - [VS Code](https://code.visualstudio.com/) v1.74+
 
 ## Setup
@@ -26,13 +26,27 @@ cd intellegode
 ```
 
 **2. Start Ollama**
+
+If you use Docker:
 ```bash
 docker-compose up -d
 ```
 
+If you installed Ollama locally (for example on Fedora/Linux):
+```bash
+ollama serve
+```
+
 **3. Pull the model**
+
+If you use Docker:
 ```bash
 docker exec intellegode-ollama ollama pull qwen2.5:3b
+```
+
+If you run Ollama locally:
+```bash
+ollama pull qwen2.5:3b
 ```
 
 **4. Install dependencies**
