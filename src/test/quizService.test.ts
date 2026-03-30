@@ -67,8 +67,7 @@ suite('Quiz Service', () => {
 			'qwen3:4b',
 			fakeCaller
 		);
-		assert.ok(result.includes('Your answer is close to the core idea'));
-		assert.ok(result.includes('prisma.users.upsert'));
+		assert.ok(result.includes('This code enforces a specific behavior'));
 	});
 
 	test('evaluateAnswer prefers valid repaired output over template fallback', async () => {
@@ -90,13 +89,11 @@ suite('Quiz Service', () => {
 	test('isContextuallyRelevant requires at least one key-term overlap', () => {
 		const relevant = isContextuallyRelevant(
 			'You explained velocity by describing how slope and volume are combined to produce the final score.',
-			'How is velocityScore calculated?',
-			'It blends slope and volume.'
+				'How is velocityScore calculated?'
 		);
 		const unrelated = isContextuallyRelevant(
 			'You identified a permission check because this controls access.',
-			'How is velocityScore calculated?',
-			'It blends slope and volume.'
+				'How is velocityScore calculated?'
 		);
 
 		assert.strictEqual(relevant, true);
@@ -106,8 +103,7 @@ suite('Quiz Service', () => {
 	test('isContextuallyRelevant handles simple word-form differences', () => {
 		const result = isContextuallyRelevant(
 			'This creates a new user when none exists, otherwise it updates the existing user record.',
-			'What does upsert do here?',
-			'It can create or update a user based on the unique key.'
+				'What does upsert do here?'
 		);
 
 		assert.strictEqual(result, true);

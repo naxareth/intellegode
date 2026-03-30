@@ -17,10 +17,10 @@ suite('Prompt Builders', () => {
 	});
 
 	test('buildEvaluatePrompt requests explanation-only output', () => {
-		const prompt = buildEvaluatePrompt('code', 'question', 'answer');
-		assert.ok(prompt.includes('Do not grade the user answer'));
-		assert.ok(prompt.includes('Write exactly 2 concise sentences.'));
-		assert.ok(prompt.includes('Avoid unrelated domains'));
+		const prompt = buildEvaluatePrompt('code', 'question');
+		assert.ok(prompt.includes('Never reference, quote, or repeat the learner answer.'));
+		assert.ok(prompt.includes('Use a maximum of 2 sentences.'));
+		assert.ok(prompt.includes('Do not restate the question.'));
 		assert.ok(prompt.includes('Correct explanation:'));
 	});
 });

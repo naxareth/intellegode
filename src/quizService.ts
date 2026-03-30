@@ -32,20 +32,20 @@ export async function generateHint(code: string, question: string, ollamaCaller:
 export async function evaluateAnswer(
 	code: string,
 	question: string,
-	answer: string,
+	_answer: string,
 	model: string = 'qwen3:4b',
 	ollamaCaller: OllamaCallerWithModel = callOllama
 ): Promise<string> {
-	const initial = await ollamaCaller(buildEvaluatePrompt(code, question, answer), model, 300, 45000);
+	const initial = await ollamaCaller(buildEvaluatePrompt(code, question), model, 300, 45000);
 	const normalizedInitial = normalizeExplanationOutput(initial);
-	if (normalizedInitial && isContextuallyRelevant(normalizedInitial, question, answer)) {
+	if (normalizedInitial && isContextuallyRelevant(normalizedInitial, question)) {
 		return normalizedInitial;
 	}
 
 	// Retry once by asking Ollama to rewrite malformed output to a concise explanation.
-	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question, answer), model, 300, 50000);
+	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question), model, 300, 50000);
 	const normalizedRepaired = normalizeExplanationOutput(repaired);
-	if (normalizedRepaired && isContextuallyRelevant(normalizedRepaired, question, answer)) {
+	if (normalizedRepaired && isContextuallyRelevant(normalizedRepaired, question)) {
 		return normalizedRepaired;
 	}
 
@@ -58,7 +58,7 @@ export async function evaluateAnswer(
 		return normalizedInitial;
 	}
 
-	return buildGroundedFallbackExplanation(question, answer);
+	return buildGroundedFallbackExplanation();
 }
 
 export function normalizeExplanationOutput(raw: string): string | null {
@@ -96,9 +96,9 @@ export function isValidExplanationOutput(text: string): boolean {
 	return true;
 }
 
-export function isContextuallyRelevant(feedback: string, question: string, answer: string): boolean {
+export function isContextuallyRelevant(feedback: string, question: string): boolean {
 	const feedbackTerms = extractKeyTerms(feedback);
-	const contextTerms = new Set([...extractKeyTerms(question), ...extractKeyTerms(answer)]);
+	const contextTerms = extractKeyTerms(question);
 
 	if (feedbackTerms.size === 0 || contextTerms.size === 0) {
 		return true;
@@ -164,14 +164,6 @@ function normalizeToken(token: string): string {
 	return token;
 }
 
-function buildGroundedFallbackExplanation(question: string, answer: string): string {
-	const compactQuestion = question.replace(/\s+/g, ' ').trim();
-	const compactAnswer = answer.replace(/\s+/g, ' ').trim();
-	const hasSubstantialAnswer = compactAnswer.split(/\s+/).length >= 6;
-
-	if (hasSubstantialAnswer) {
-		return `Your answer is close to the core idea: ${compactAnswer}. To complete it, tie it directly to "${compactQuestion}" and explain what behavior this guarantees in the selected code path.`;
-	}
-
-	return `Focus on "${compactQuestion}" by describing the exact behavior in the selected code and why that behavior matters for correctness.`;
+function buildGroundedFallbackExplanation(): string {
+	return 'This code enforces a specific behavior so state changes remain correct and predictable. It matters because it prevents inconsistent data or unsafe execution paths.';
 }

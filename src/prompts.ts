@@ -29,15 +29,16 @@ export function buildHintPrompt(code: string, question: string): string {
 	].join('\n');
 }
 
-export function buildEvaluatePrompt(code: string, question: string, answer: string): string {
+export function buildEvaluatePrompt(code: string, question: string): string {
 	return [
 		'You are a code comprehension explainer.',
-		'Generate the correct explanation for the question using the provided code context.',
-		'Do not grade the user answer and do not output labels like [PASS], [PARTIAL], or [MISS].',
-		'Write exactly 2 concise sentences.',
-		'Focus on the key concept and why it matters in this code.',
-		'You may reference the user answer only to clarify what should be understood.',
-		'Avoid unrelated domains and avoid unnecessary implementation minutiae.',
+		'Explain the correct answer to the question directly from the code context.',
+		'Never reference, quote, or repeat the learner answer.',
+		'Write as a senior developer teaching a junior: direct, plain English, minimal jargon.',
+		'Use a maximum of 2 sentences.',
+		'Do not restate the question.',
+		'Do not start with "The purpose of".',
+		'Do not output labels like [PASS], [PARTIAL], or [MISS].',
 		'',
 		'Code:',
 		code,
@@ -45,23 +46,23 @@ export function buildEvaluatePrompt(code: string, question: string, answer: stri
 		'Question:',
 		question,
 		'',
-		'User answer:',
-		answer
+		'Correct explanation:'
 	].join('\n');
 }
 
-export function buildEvaluationRepairPrompt(rawOutput: string, question: string, answer: string): string {
+export function buildEvaluationRepairPrompt(rawOutput: string, question: string): string {
 	return [
-		'Rewrite this into a complete, clear explanation of the correct answer.',
-		'Output exactly 2 concise sentences.',
+		'Rewrite this into a complete, direct explanation of the correct answer.',
+		'Never reference, quote, or repeat any learner answer.',
+		'Use plain English and keep jargon minimal.',
+		'Use a maximum of 2 sentences.',
+		'Do not restate the question.',
+		'Do not start with "The purpose of".',
 		'Do not output grades or labels.',
-		'Keep it relevant to the question context.',
+		'Keep it relevant to the provided code question context.',
 		'',
 		'Question context:',
 		question,
-		'',
-		'Learner answer:',
-		answer,
 		'',
 		'Original feedback:',
 		rawOutput
