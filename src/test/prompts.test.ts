@@ -18,6 +18,8 @@ suite('Prompt Builders', () => {
 
 	test('buildEvaluatePrompt requests explanation-only output', () => {
 		const prompt = buildEvaluatePrompt('code', 'question');
+		assert.ok(prompt.includes('Reference the actual operations in the code'));
+		assert.ok(prompt.includes('Never give a generic answer that could apply to many code snippets'));
 		assert.ok(prompt.includes('Never reference, quote, or repeat the learner answer.'));
 		assert.ok(prompt.includes('Use a maximum of 2 sentences.'));
 		assert.ok(prompt.includes('Do not restate the question.'));

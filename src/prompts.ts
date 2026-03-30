@@ -32,7 +32,10 @@ export function buildHintPrompt(code: string, question: string): string {
 export function buildEvaluatePrompt(code: string, question: string): string {
 	return [
 		'You are a code comprehension explainer.',
-		'Explain the correct answer to the question directly from the code context.',
+		'Explain what this specific code does to answer the question, based only on the provided code context.',
+		'Reference the actual operations in the code (for example: creating records, looping, condition checks, and saving to the database).',
+		'The explanation must be specific enough that someone who has not seen the code still understands exactly what it is doing.',
+		'Never give a generic answer that could apply to many code snippets; always anchor your explanation to this code.',
 		'Never reference, quote, or repeat the learner answer.',
 		'Write as a senior developer teaching a junior: direct, plain English, minimal jargon.',
 		'Use a maximum of 2 sentences.',
@@ -52,7 +55,10 @@ export function buildEvaluatePrompt(code: string, question: string): string {
 
 export function buildEvaluationRepairPrompt(rawOutput: string, question: string): string {
 	return [
-		'Rewrite this into a complete, direct explanation of the correct answer.',
+		'Rewrite this into a complete, direct explanation of what the specific code is doing to answer the question.',
+		'Reference concrete operations from the code flow, such as record creation, looping, checks, or database writes.',
+		'Make it specific enough that someone who has not seen the code can still understand exactly what happens.',
+		'Never output a generic explanation that could apply to unrelated code.',
 		'Never reference, quote, or repeat any learner answer.',
 		'Use plain English and keep jargon minimal.',
 		'Use a maximum of 2 sentences.',
