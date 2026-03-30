@@ -49,7 +49,16 @@ export async function evaluateAnswer(
 		return normalizedRepaired;
 	}
 
-	return `The key idea in this question is understanding ${question}. Focus on the mechanism in the code and explain what it does and why that behavior is important.`;
+	// Prefer a complete model explanation over a generic template when relevance checks are inconclusive.
+	if (normalizedRepaired) {
+		return normalizedRepaired;
+	}
+
+	if (normalizedInitial) {
+		return normalizedInitial;
+	}
+
+	return buildGroundedFallbackExplanation(question, answer);
 }
 
 export function normalizeExplanationOutput(raw: string): string | null {
@@ -58,11 +67,16 @@ export function normalizeExplanationOutput(raw: string): string | null {
 		return null;
 	}
 
-	if (!isValidExplanationOutput(oneLine)) {
+	const sanitized = stripLeadingGradeLabels(oneLine);
+	if (!sanitized) {
 		return null;
 	}
 
-	return oneLine;
+	if (!isValidExplanationOutput(sanitized)) {
+		return null;
+	}
+
+	return sanitized;
 }
 
 export function isValidExplanationOutput(text: string): boolean {
@@ -112,6 +126,7 @@ function extractKeyTerms(text: string): Set<string> {
 		.replace(/\[[^\]]+\]/g, ' ')
 		.replace(/[^a-z0-9_\s]/g, ' ')
 		.split(/\s+/)
+		.map(normalizeToken)
 		.filter((token) => token.length >= 4 && !stopWords.has(token));
 
 	return new Set(tokens);
@@ -120,4 +135,43 @@ function extractKeyTerms(text: string): Set<string> {
 function looksComplete(text: string): boolean {
 	const trimmed = text.trim();
 	return /[.!?]$/.test(trimmed);
+}
+
+function stripLeadingGradeLabels(text: string): string {
+	return text
+		.replace(/^\s*\[(PASS|PARTIAL|MISS)\]\s*/i, '')
+		.replace(/^\s*(PASS|PARTIAL|MISS)\s*[:\-]\s*/i, '')
+		.trim();
+}
+
+function normalizeToken(token: string): string {
+	if (token.length > 5 && token.endsWith('ing')) {
+		return token.slice(0, -3);
+	}
+
+	if (token.length > 4 && token.endsWith('ed')) {
+		return token.slice(0, -2);
+	}
+
+	if (token.length > 4 && token.endsWith('es')) {
+		return token.slice(0, -2);
+	}
+
+	if (token.length > 4 && token.endsWith('s')) {
+		return token.slice(0, -1);
+	}
+
+	return token;
+}
+
+function buildGroundedFallbackExplanation(question: string, answer: string): string {
+	const compactQuestion = question.replace(/\s+/g, ' ').trim();
+	const compactAnswer = answer.replace(/\s+/g, ' ').trim();
+	const hasSubstantialAnswer = compactAnswer.split(/\s+/).length >= 6;
+
+	if (hasSubstantialAnswer) {
+		return `Your answer is close to the core idea: ${compactAnswer}. To complete it, tie it directly to "${compactQuestion}" and explain what behavior this guarantees in the selected code path.`;
+	}
+
+	return `Focus on "${compactQuestion}" by describing the exact behavior in the selected code and why that behavior matters for correctness.`;
 }

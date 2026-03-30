@@ -60,8 +60,31 @@ suite('Quiz Service', () => {
 
 	test('evaluateAnswer returns safe fallback when malformed twice', async () => {
 		const fakeCaller = async (): Promise<string> => 'Nope.';
-		const result = await evaluateAnswer('code', 'question', 'answer', 'qwen3:4b', fakeCaller);
-		assert.ok(result.includes('key idea'));
+		const result = await evaluateAnswer(
+			'code',
+			'What does prisma.users.upsert do in this code?',
+			'It creates a user if no matching wallet exists, otherwise it updates the existing one.',
+			'qwen3:4b',
+			fakeCaller
+		);
+		assert.ok(result.includes('Your answer is close to the core idea'));
+		assert.ok(result.includes('prisma.users.upsert'));
+	});
+
+	test('evaluateAnswer prefers valid repaired output over template fallback', async () => {
+		const calls: string[] = [];
+		const fakeCaller = async (prompt: string): Promise<string> => {
+			calls.push(prompt);
+			if (calls.length === 1) {
+				return 'This function checks API quotas before processing requests. It prevents overuse by enforcing rate limits.';
+			}
+
+			return 'The function validates whether an invitation token is still active. It blocks enrollment when the token has expired.';
+		};
+
+		const result = await evaluateAnswer('code', 'How is velocityScore calculated?', 'It blends slope and volume.', 'qwen3:4b', fakeCaller);
+		assert.ok(result.includes('invitation token'));
+		assert.strictEqual(result.includes('Your answer is close to the core idea'), false);
 	});
 
 	test('isContextuallyRelevant requires at least one key-term overlap', () => {
@@ -78,5 +101,15 @@ suite('Quiz Service', () => {
 
 		assert.strictEqual(relevant, true);
 		assert.strictEqual(unrelated, false);
+	});
+
+	test('isContextuallyRelevant handles simple word-form differences', () => {
+		const result = isContextuallyRelevant(
+			'This creates a new user when none exists, otherwise it updates the existing user record.',
+			'What does upsert do here?',
+			'It can create or update a user based on the unique key.'
+		);
+
+		assert.strictEqual(result, true);
 	});
 });
