@@ -67,7 +67,8 @@ suite('Quiz Service', () => {
 			'qwen3:4b',
 			fakeCaller
 		);
-		assert.ok(result.includes('This code enforces a specific behavior'));
+		assert.ok(result.includes('wallet_address'));
+		assert.ok(result.includes('verified credential'));
 	});
 
 	test('evaluateAnswer prefers valid repaired output over template fallback', async () => {

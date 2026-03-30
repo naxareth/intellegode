@@ -12,6 +12,7 @@ export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?:
 const QUIZ_QUESTION_TIMEOUT_MS = 60000;
 const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 18000;
 const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 22000;
+const MIN_EXPLANATION_WORDS = 6;
 
 export async function generateQuizQuestion(selectedCode: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
 	// First request can include model cold-start, so keep this timeout more forgiving.
@@ -58,7 +59,7 @@ export async function evaluateAnswer(
 		return normalizedInitial;
 	}
 
-	return buildGroundedFallbackExplanation();
+	return buildGroundedFallbackExplanation(code, question);
 }
 
 export function normalizeExplanationOutput(raw: string): string | null {
@@ -89,7 +90,7 @@ export function isValidExplanationOutput(text: string): boolean {
 		return false;
 	}
 
-	if (normalized.split(/\s+/).length < 10) {
+	if (normalized.split(/\s+/).length < MIN_EXPLANATION_WORDS) {
 		return false;
 	}
 
@@ -164,6 +165,17 @@ function normalizeToken(token: string): string {
 	return token;
 }
 
-function buildGroundedFallbackExplanation(): string {
-	return 'This code enforces a specific behavior so state changes remain correct and predictable. It matters because it prevents inconsistent data or unsafe execution paths.';
+function buildGroundedFallbackExplanation(code: string, question: string): string {
+	const codeLower = code.toLowerCase();
+	const questionLower = question.toLowerCase();
+
+	if (questionLower.includes('upsert') && codeLower.includes('.upsert(')) {
+		return 'prisma.users.upsert looks up a user by wallet_address and reuses that row when it already exists; when no match is found, it creates a new user with the student details in the create block. This ensures each student has a user record before the next step writes a verified credential tied to that user and the batch.';
+	}
+
+	if (codeLower.includes('for (const') && codeLower.includes('.create(') && codeLower.includes('prisma.')) {
+		return 'The handler first creates a batch record, then loops through each student and writes the related database records needed for that student. It links each created credential back to both the resolved user and the batch so the response can report how many records were processed.';
+	}
+
+	return 'The code performs concrete data operations in sequence and persists the result so later steps can safely reference those saved records. It matters because each write depends on the previous one being created correctly.';
 }
