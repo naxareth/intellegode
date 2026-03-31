@@ -93,7 +93,8 @@ async function generateWithModel(
 					num_ctx: numCtx,
 					...(shouldForceCpu ? { num_gpu: 0 } : {})
 				},
-				stream: false
+				stream: false,
+				keep_alive: '30s'
 			})
 		});
 
