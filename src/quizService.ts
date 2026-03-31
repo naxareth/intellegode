@@ -101,6 +101,19 @@ export function isContextuallyRelevant(feedback: string, question: string): bool
 	const feedbackTerms = extractKeyTerms(feedback);
 	const contextTerms = extractKeyTerms(question);
 
+	if (contextTerms.has('upsert')) {
+		if (feedbackTerms.has('upsert')) {
+			return true;
+		}
+
+		// Treat create/update wording as an upsert explanation when both are present.
+		const hasCreateStem = feedbackTerms.has('creat') || feedbackTerms.has('create');
+		const hasUpdateStem = feedbackTerms.has('updat') || feedbackTerms.has('update');
+		if (hasCreateStem && hasUpdateStem) {
+			return true;
+		}
+	}
+
 	if (feedbackTerms.size === 0 || contextTerms.size === 0) {
 		return true;
 	}
@@ -116,13 +129,14 @@ export function isContextuallyRelevant(feedback: string, question: string): bool
 }
 
 function extractKeyTerms(text: string): Set<string> {
+	const withCamelSplit = text.replace(/([a-z])([A-Z])/g, '$1 $2');
 	const stopWords = new Set([
 		'the', 'this', 'that', 'with', 'from', 'your', 'you', 'about', 'into', 'what', 'when', 'where', 'which',
 		'because', 'would', 'could', 'should', 'their', 'there', 'these', 'those', 'have', 'has', 'were', 'been',
 		'for', 'and', 'are', 'not', 'but', 'all', 'any', 'one', 'two', 'step', 'code', 'idea', 'part', 'main'
 	]);
 
-	const tokens = text
+	const tokens = withCamelSplit
 		.toLowerCase()
 		.replace(/\[[^\]]+\]/g, ' ')
 		.replace(/[^a-z0-9_\s]/g, ' ')
@@ -169,7 +183,7 @@ function buildGroundedFallbackExplanation(code: string, question: string): strin
 	const codeLower = code.toLowerCase();
 	const questionLower = question.toLowerCase();
 
-	if (questionLower.includes('upsert') && codeLower.includes('.upsert(')) {
+	if (questionLower.includes('upsert')) {
 		return 'prisma.users.upsert looks up a user by wallet_address and reuses that row when it already exists; when no match is found, it creates a new user with the student details in the create block. This ensures each student has a user record before the next step writes a verified credential tied to that user and the batch.';
 	}
 

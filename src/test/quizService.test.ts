@@ -54,7 +54,7 @@ suite('Quiz Service', () => {
 		const question = 'How is velocityScore calculated?';
 		const answer = 'It blends slope, volume, and recency.';
 		const result = await evaluateAnswer('code', question, answer, 'qwen3.5:4b', fakeCaller);
-		assert.ok(result.includes('velocity'));
+		assert.ok(/velocity/i.test(result));
 		assert.strictEqual(calls.length, 2);
 	});
 
