@@ -1,5 +1,9 @@
 import typescriptEslint from "typescript-eslint";
 
+if (typeof globalThis.structuredClone !== "function") {
+    globalThis.structuredClone = value => JSON.parse(JSON.stringify(value));
+}
+
 export default [{
     files: ["**/*.ts"],
 }, {

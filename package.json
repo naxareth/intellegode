@@ -25,7 +25,7 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "node -r ./scripts/structuredClonePolyfill.cjs ./node_modules/@vscode/test-cli/out/bin.mjs"
   },
   "devDependencies": {
     "@types/vscode": "^1.110.0",
