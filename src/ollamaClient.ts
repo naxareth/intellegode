@@ -2,8 +2,8 @@ import { OllamaGenerateResponse } from './types';
 
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
 const OLLAMA_TAGS_URL = 'http://localhost:11434/api/tags';
-const DEFAULT_OLLAMA_MODEL = 'qwen3.5:4b';
-const PREFERRED_FALLBACK_MODELS = ['qwen3.5:4b', 'qwen3:4b', 'qwen2.5:3b'];
+const DEFAULT_OLLAMA_MODEL = 'qwen2.5:3b';
+const PREFERRED_FALLBACK_MODELS = ['qwen2.5:3b', 'qwen3:4b', 'qwen3.5:4b'];
 
 type OllamaTagsResponse = {
 	models?: Array<{ name?: string }>;
