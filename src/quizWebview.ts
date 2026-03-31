@@ -102,6 +102,20 @@ export function getQuizWebviewHtml(question: string): string {
       opacity: 0.7;
     }
 
+    /* Input section that collapses after submit */
+    .input-section {
+      transition: opacity 0.25s ease, max-height 0.3s ease;
+      overflow: hidden;
+    }
+
+    .input-section.collapsed {
+      opacity: 0;
+      max-height: 0;
+      margin: 0;
+      padding: 0;
+      pointer-events: none;
+    }
+
     label {
       display: block;
       font-size: 11px;
@@ -148,6 +162,13 @@ export function getQuizWebviewHtml(question: string): string {
       margin-top: 12px;
     }
 
+    .shortcut-hint {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      opacity: 0.4;
+      margin-left: 4px;
+    }
+
     button {
       padding: 8px 16px;
       border: none;
@@ -177,14 +198,16 @@ export function getQuizWebviewHtml(question: string): string {
     }
 
     #newQuestionBtn,
-    #resetBtn {
+    #resetBtn,
+    #editAnswerBtn {
       background: rgba(255,255,255,0.08);
       color: var(--vscode-editor-foreground, #e6edf3);
       border: 1px solid rgba(255,255,255,0.15);
     }
 
     #newQuestionBtn:hover,
-    #resetBtn:hover {
+    #resetBtn:hover,
+    #editAnswerBtn:hover {
       background: rgba(255,255,255,0.14);
     }
 
@@ -275,6 +298,16 @@ export function getQuizWebviewHtml(question: string): string {
       white-space: pre-wrap;
     }
 
+    .review-actions {
+      display: none;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .review-actions.visible {
+      display: flex;
+    }
+
     .self-grade-actions {
       display: none;
       gap: 8px;
@@ -296,26 +329,148 @@ export function getQuizWebviewHtml(question: string): string {
       border: 1px solid rgba(63,185,80,0.35);
     }
 
+    #gotItBtn:hover:not(:disabled) {
+      background: rgba(63,185,80,0.35);
+    }
+
     #missedItBtn {
       background: rgba(248,81,73,0.2);
       color: #ffa198;
       border: 1px solid rgba(248,81,73,0.35);
     }
 
+    #missedItBtn:hover:not(:disabled) {
+      background: rgba(248,81,73,0.35);
+    }
+
+    /* Self-grade status with color coding */
     .self-grade-status {
       display: none;
       margin-top: 12px;
-      padding: 10px;
+      padding: 12px;
       border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.03);
       font-size: 12px;
       line-height: 1.5;
-      white-space: pre-wrap;
+      animation: slideIn 0.2s ease;
     }
 
     .self-grade-status.visible {
       display: block;
+    }
+
+    .self-grade-status.got-it {
+      background: rgba(63,185,80,0.1);
+      border: 1px solid rgba(63,185,80,0.25);
+      color: #9be9a8;
+    }
+
+    .self-grade-status.missed-it {
+      background: rgba(248,81,73,0.1);
+      border: 1px solid rgba(248,81,73,0.25);
+      color: #ffa198;
+    }
+
+    .self-grade-status.reset {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--vscode-editor-foreground, #e6edf3);
+    }
+
+    .grade-badge {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+
+    .grade-badge.got-it {
+      background: rgba(63,185,80,0.25);
+      color: #9be9a8;
+    }
+
+    .grade-badge.missed-it {
+      background: rgba(248,81,73,0.25);
+      color: #ffa198;
+    }
+
+    /* Progress bar */
+    .progress-section {
+      display: none;
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      animation: slideIn 0.2s ease;
+    }
+
+    .progress-section.visible {
+      display: block;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .progress-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.6;
+    }
+
+    .progress-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      opacity: 0.7;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .progress-got-it {
+      height: 100%;
+      background: linear-gradient(90deg, #3fb950, #56d364);
+      transition: width 0.4s ease;
+    }
+
+    .progress-missed-it {
+      height: 100%;
+      background: linear-gradient(90deg, #f85149, #ff7b72);
+      transition: width 0.4s ease;
+    }
+
+    .progress-stats {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 11px;
+    }
+
+    .stat-got-it {
+      color: #9be9a8;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-missed-it {
+      color: #ffa198;
+      font-family: 'JetBrains Mono', monospace;
     }
 
     @keyframes slideIn {
@@ -342,21 +497,24 @@ export function getQuizWebviewHtml(question: string): string {
   </div>
 
   <div class="hint-box" id="hint">
-    <div class="hint-label">Hint</div>
+    <div class="hint-label">💡 Hint</div>
     <div id="hintText"></div>
   </div>
 
-  <label for="answer">Your Answer</label>
-  <textarea id="answer" placeholder="Explain it in your own words..."></textarea>
+  <div class="input-section" id="inputSection">
+    <label for="answer">Your Answer <span class="shortcut-hint">Ctrl+Enter to submit</span></label>
+    <textarea id="answer" placeholder="Explain it in your own words..."></textarea>
 
-  <div class="actions">
-    <button id="submit">Submit</button>
-    <button id="hintBtn">Give me a hint</button>
-    <button id="newQuestionBtn">New question</button>
-    <button id="resetBtn">Reset</button>
+    <div class="actions">
+      <button id="submit">Submit</button>
+      <button id="hintBtn">Give me a hint</button>
+      <button id="newQuestionBtn">New question</button>
+      <button id="resetBtn">Reset</button>
+    </div>
   </div>
 
   <div class="loading" id="loading">Thinking...</div>
+
   <div class="review-box" id="reviewBox">
     <div class="review-grid">
       <div class="review-col">
@@ -369,12 +527,34 @@ export function getQuizWebviewHtml(question: string): string {
       </div>
     </div>
     <div class="self-grade-actions" id="selfGradeActions">
-      <button id="gotItBtn">I got it</button>
-      <button id="missedItBtn">I missed it</button>
+      <button id="gotItBtn">✓ I got it</button>
+      <button id="missedItBtn">✗ I missed it</button>
     </div>
     <div class="self-grade-status" id="selfGradeStatus"></div>
+    <div class="review-actions" id="reviewActions">
+      <button id="editAnswerBtn">Edit answer</button>
+      <button id="nextQuestionBtn">Next question</button>
+      <button id="reviewResetBtn">Reset</button>
+    </div>
   </div>
+
   <div class="result-box" id="result"></div>
+
+  <!-- Progress bar section -->
+  <div class="progress-section" id="progressSection">
+    <div class="progress-header">
+      <span class="progress-label">Session Progress</span>
+      <span class="progress-count" id="progressCount">0 reviewed</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-got-it" id="progressGotIt" style="width: 0%"></div>
+      <div class="progress-missed-it" id="progressMissedIt" style="width: 0%"></div>
+    </div>
+    <div class="progress-stats">
+      <span class="stat-got-it" id="statGotIt">✓ 0 got it</span>
+      <span class="stat-missed-it" id="statMissedIt">✗ 0 missed it</span>
+    </div>
+  </div>
 
   <script>
     function safeScrollIntoView(el) {
@@ -417,11 +597,39 @@ export function getQuizWebviewHtml(question: string): string {
     var selfGradeStatus = document.getElementById('selfGradeStatus');
     var gotItBtn = document.getElementById('gotItBtn');
     var missedItBtn = document.getElementById('missedItBtn');
+    var inputSection = document.getElementById('inputSection');
+    var editAnswerBtn = document.getElementById('editAnswerBtn');
+    var nextQuestionBtn = document.getElementById('nextQuestionBtn');
+    var reviewResetBtn = document.getElementById('reviewResetBtn');
+    var reviewActions = document.getElementById('reviewActions');
+    var progressSection = document.getElementById('progressSection');
+    var progressCount = document.getElementById('progressCount');
+    var progressGotIt = document.getElementById('progressGotIt');
+    var progressMissedIt = document.getElementById('progressMissedIt');
+    var statGotIt = document.getElementById('statGotIt');
+    var statMissedIt = document.getElementById('statMissedIt');
+
+    function collapseInput() {
+      if (inputSection) inputSection.classList.add('collapsed');
+    }
+
+    function expandInput() {
+      if (inputSection) inputSection.classList.remove('collapsed');
+    }
+
+    function hideReview() {
+      if (reviewBox) reviewBox.classList.remove('visible');
+      if (selfGradeActions) selfGradeActions.classList.remove('visible');
+      if (selfGradeStatus) {
+        selfGradeStatus.classList.remove('visible', 'got-it', 'missed-it', 'reset');
+        selfGradeStatus.innerHTML = '';
+      }
+      if (reviewActions) reviewActions.classList.remove('visible');
+    }
 
     if (submitBtn) {
       submitBtn.addEventListener('click', function () {
-        if (reviewBox) reviewBox.classList.remove('visible');
-        if (selfGradeActions) selfGradeActions.classList.remove('visible');
+        hideReview();
         if (result) {
           result.className = 'result-box visible';
           result.textContent = 'Generating explanation...';
@@ -462,6 +670,65 @@ export function getQuizWebviewHtml(question: string): string {
       });
     }
 
+    // Review-phase action buttons
+    if (editAnswerBtn) {
+      editAnswerBtn.addEventListener('click', function () {
+        hideReview();
+        expandInput();
+        if (answerInput) answerInput.focus();
+      });
+    }
+
+    if (nextQuestionBtn) {
+      nextQuestionBtn.addEventListener('click', function () {
+        postToExtension({ command: 'newQuestion' });
+      });
+    }
+
+    if (reviewResetBtn) {
+      reviewResetBtn.addEventListener('click', function () {
+        postToExtension({ command: 'resetQuiz' });
+      });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function (e) {
+      // Ctrl+Enter or Cmd+Enter to submit
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (submitBtn && !submitBtn.disabled && inputSection && !inputSection.classList.contains('collapsed')) {
+          submitBtn.click();
+        }
+      }
+
+      // Ctrl+H or Cmd+H for hint
+      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault();
+        if (hintBtn && !hintBtn.disabled && inputSection && !inputSection.classList.contains('collapsed')) {
+          hintBtn.click();
+        }
+      }
+    });
+
+    function updateProgressBar(got, missed) {
+      var total = got + missed;
+      if (total === 0) {
+        if (progressSection) progressSection.classList.remove('visible');
+        return;
+      }
+
+      if (progressSection) progressSection.classList.add('visible');
+      if (progressCount) progressCount.textContent = total + ' reviewed';
+
+      var gotPct = Math.round((got / total) * 100);
+      var missedPct = 100 - gotPct;
+
+      if (progressGotIt) progressGotIt.style.width = gotPct + '%';
+      if (progressMissedIt) progressMissedIt.style.width = missedPct + '%';
+      if (statGotIt) statGotIt.textContent = '\\u2713 ' + got + ' got it';
+      if (statMissedIt) statMissedIt.textContent = '\\u2717 ' + missed + ' missed it';
+    }
+
     window.addEventListener('message', function (event) {
       var msg = event.data || {};
 
@@ -483,10 +750,8 @@ export function getQuizWebviewHtml(question: string): string {
         if (answerInput) answerInput.value = '';
         if (hintText) hintText.textContent = '';
         if (hintBox) hintBox.classList.remove('visible');
-        if (reviewBox) reviewBox.classList.remove('visible');
-        if (selfGradeActions) selfGradeActions.classList.remove('visible');
-        if (selfGradeStatus) selfGradeStatus.classList.remove('visible');
-        if (selfGradeStatus) selfGradeStatus.textContent = '';
+        hideReview();
+        expandInput();
         if (result) {
           result.textContent = '';
           result.className = 'result-box';
@@ -497,10 +762,8 @@ export function getQuizWebviewHtml(question: string): string {
         if (answerInput) answerInput.value = '';
         if (hintText) hintText.textContent = '';
         if (hintBox) hintBox.classList.remove('visible');
-        if (reviewBox) reviewBox.classList.remove('visible');
-        if (selfGradeActions) selfGradeActions.classList.remove('visible');
-        if (selfGradeStatus) selfGradeStatus.classList.remove('visible');
-        if (selfGradeStatus) selfGradeStatus.textContent = '';
+        hideReview();
+        expandInput();
         if (result) {
           result.textContent = '';
           result.className = 'result-box';
@@ -533,6 +796,8 @@ export function getQuizWebviewHtml(question: string): string {
           result.className = 'result-box';
           result.textContent = '';
         }
+        // Collapse input section to focus on review
+        collapseInput();
         safeScrollIntoView(reviewBox);
       }
 
@@ -540,20 +805,32 @@ export function getQuizWebviewHtml(question: string): string {
         var got = Number(msg.gotItCount || 0);
         var missed = Number(msg.missedItCount || 0);
         var total = Number(msg.total || 0);
-        var latest = 'Progress reset.';
-        if (msg.result === 'got-it') {
-          latest = 'Last result: You marked this as got it.';
-        } else if (msg.result === 'missed-it') {
-          latest = 'Last result: You marked this as missed it.';
+
+        if (msg.result === 'got-it' && selfGradeStatus) {
+          selfGradeStatus.className = 'self-grade-status visible got-it';
+          selfGradeStatus.innerHTML =
+            '<span class="grade-badge got-it">\\u2713 Got it</span><br>' +
+            'Nice! You understood this concept correctly.';
+        } else if (msg.result === 'missed-it' && selfGradeStatus) {
+          selfGradeStatus.className = 'self-grade-status visible missed-it';
+          selfGradeStatus.innerHTML =
+            '<span class="grade-badge missed-it">\\u2717 Missed it</span><br>' +
+            'No worries \\u2014 review the explanation and try a new question.';
+        } else if (msg.result === 'reset' && selfGradeStatus) {
+          selfGradeStatus.className = 'self-grade-status visible reset';
+          selfGradeStatus.innerHTML = 'Progress reset. Start fresh!';
         }
 
-        if (selfGradeStatus) {
-          selfGradeStatus.textContent = latest + '\\n' +
-            'Got it: ' + got + ' | Missed it: ' + missed + ' | Total reviewed: ' + total;
-          selfGradeStatus.classList.add('visible');
-        }
         if (gotItBtn) gotItBtn.disabled = true;
         if (missedItBtn) missedItBtn.disabled = true;
+
+        // Show review-phase action buttons after grading
+        if (reviewActions && msg.result !== 'reset') {
+          reviewActions.classList.add('visible');
+        }
+
+        // Update progress bar
+        updateProgressBar(got, missed);
       }
     });
   </script>
