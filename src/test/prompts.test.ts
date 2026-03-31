@@ -12,8 +12,9 @@ suite('Prompt Builders', () => {
 	test('buildHintPrompt enforces conceptual-only hint', () => {
 		const prompt = buildHintPrompt('function a() {}', 'What does this do?');
 		assert.ok(prompt.includes('conceptual nudge'));
-		assert.ok(prompt.includes('Do not mention specific variable names'));
-		assert.ok(prompt.includes('without giving away the answer'));
+		assert.ok(prompt.includes('Do NOT mention any specific variable names'));
+		assert.ok(prompt.includes('Do NOT give away the answer'));
+		assert.ok(prompt.includes('general programming concept'));
 	});
 
 	test('buildEvaluatePrompt requests explanation-only output', () => {
