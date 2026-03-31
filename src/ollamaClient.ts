@@ -9,12 +9,25 @@ type OllamaTagsResponse = {
 	models?: Array<{ name?: string }>;
 };
 
+type GenerateOptions = {
+	forceCpu?: boolean;
+	reduceContext?: boolean;
+};
+
 function isModelNotFoundError(error: unknown): boolean {
 	if (!(error instanceof Error)) {
 		return false;
 	}
 
 	return /model\s+['"][^'"]+['"]\s+not found/i.test(error.message);
+}
+
+function isModelLoadFailure(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+
+	return /model failed to load|llama runner terminated|connection refused|\bEOF\b/i.test(error.message);
 }
 
 async function fetchAvailableModels(timeoutMs: number): Promise<string[]> {
@@ -54,9 +67,17 @@ function pickFallbackModel(requestedModel: string, availableModels: string[]): s
 	return null;
 }
 
-async function generateWithModel(prompt: string, model: string, maxTokens: number, timeoutMs: number): Promise<string> {
+async function generateWithModel(
+	prompt: string,
+	model: string,
+	maxTokens: number,
+	timeoutMs: number,
+	generateOptions: GenerateOptions = {}
+): Promise<string> {
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+	const shouldForceCpu = generateOptions.forceCpu || process.env.INTELLEGODE_OLLAMA_FORCE_CPU === '1';
+	const numCtx = generateOptions.reduceContext ? 1024 : 2048;
 
 	try {
 		const response = await fetch(OLLAMA_URL, {
@@ -68,7 +89,9 @@ async function generateWithModel(prompt: string, model: string, maxTokens: numbe
 				prompt,
 				options: {
 					num_predict: maxTokens,
-					temperature: 0.2
+					temperature: 0.2,
+					num_ctx: numCtx,
+					...(shouldForceCpu ? { num_gpu: 0 } : {})
 				},
 				stream: false
 			})
@@ -105,6 +128,20 @@ export async function callOllama(
 	try {
 		return await generateWithModel(prompt, model, maxTokens, timeoutMs);
 	} catch (error) {
+		if (isModelLoadFailure(error)) {
+			console.warn(`Model load failed for '${model}'. Retrying with safer CPU-oriented options.`);
+			try {
+				return await generateWithModel(prompt, model, maxTokens, timeoutMs, {
+					forceCpu: true,
+					reduceContext: true
+				});
+			} catch (retryError) {
+				if (!isModelNotFoundError(retryError)) {
+					throw retryError;
+				}
+			}
+		}
+
 		if (!isModelNotFoundError(error)) {
 			throw error;
 		}
@@ -113,7 +150,19 @@ export async function callOllama(
 		const fallbackModel = pickFallbackModel(model, availableModels);
 		if (fallbackModel) {
 			console.warn(`Configured model '${model}' is missing. Falling back to '${fallbackModel}'.`);
-			return await generateWithModel(prompt, fallbackModel, maxTokens, timeoutMs);
+			try {
+				return await generateWithModel(prompt, fallbackModel, maxTokens, timeoutMs);
+			} catch (fallbackError) {
+				if (!isModelLoadFailure(fallbackError)) {
+					throw fallbackError;
+				}
+
+				console.warn(`Fallback model '${fallbackModel}' failed to load. Retrying with safer CPU-oriented options.`);
+				return await generateWithModel(prompt, fallbackModel, maxTokens, timeoutMs, {
+					forceCpu: true,
+					reduceContext: true
+				});
+			}
 		}
 
 		const available = availableModels.length > 0 ? availableModels.join(', ') : 'none';
