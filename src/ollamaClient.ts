@@ -77,7 +77,7 @@ async function generateWithModel(
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), timeoutMs);
 	const shouldForceCpu = generateOptions.forceCpu || process.env.INTELLEGODE_OLLAMA_FORCE_CPU === '1';
-	const numCtx = generateOptions.reduceContext ? 1024 : 2048;
+	const numCtx = generateOptions.reduceContext ? 512 : 1024;
 
 	try {
 		const response = await fetch(OLLAMA_URL, {
