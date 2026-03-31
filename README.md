@@ -41,12 +41,12 @@ ollama serve
 
 If you use Docker:
 ```bash
-docker exec intellegode-ollama ollama pull qwen2.5:3b
+docker exec intellegode-ollama ollama pull qwen3.5:4b
 ```
 
 If you run Ollama locally:
 ```bash
-ollama pull qwen2.5:3b
+ollama pull qwen3.5:4b
 ```
 
 **4. Install dependencies**
@@ -62,7 +62,7 @@ Press `F5` in VS Code to launch the Extension Development Host.
 
 - VS Code Extension API (TypeScript)
 - Ollama (local LLM runtime via Docker)
-- Qwen2.5 3B (code comprehension model)
+- Qwen3.5 4B (code comprehension model)
 
 ## Roadmap
 

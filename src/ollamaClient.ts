@@ -1,7 +1,7 @@
 import { OllamaGenerateResponse } from './types';
 
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
-const DEFAULT_OLLAMA_MODEL = 'qwen2.5:3b';
+const DEFAULT_OLLAMA_MODEL = 'qwen3.5:4b';
 
 export async function callOllama(
 	prompt: string,

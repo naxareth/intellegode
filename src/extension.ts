@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { startQuizSession } from './quizController';
 
-const EVALUATOR_MODEL = 'qwen3:4b';
+const EVALUATOR_MODEL = 'qwen3.5:4b';
 
 // This method is called when your extension is activated.
 export function activate(context: vscode.ExtensionContext) {

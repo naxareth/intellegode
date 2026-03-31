@@ -34,7 +34,7 @@ export async function evaluateAnswer(
 	code: string,
 	question: string,
 	_answer: string,
-	model: string = 'qwen3:4b',
+	model: string = 'qwen3.5:4b',
 	ollamaCaller: OllamaCallerWithModel = callOllama
 ): Promise<string> {
 	const initial = await ollamaCaller(buildEvaluatePrompt(code, question), model, 300, 45000);

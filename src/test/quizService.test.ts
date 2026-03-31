@@ -34,7 +34,7 @@ suite('Quiz Service', () => {
 			'code',
 			'What is the purpose of this permission check?',
 			'It is a permission check for access control.',
-			'qwen3:4b',
+			'qwen3.5:4b',
 			fakeCaller
 		);
 		assert.ok(result.includes('permission'));
@@ -53,7 +53,7 @@ suite('Quiz Service', () => {
 
 		const question = 'How is velocityScore calculated?';
 		const answer = 'It blends slope, volume, and recency.';
-		const result = await evaluateAnswer('code', question, answer, 'qwen3:4b', fakeCaller);
+		const result = await evaluateAnswer('code', question, answer, 'qwen3.5:4b', fakeCaller);
 		assert.ok(result.includes('velocity'));
 		assert.strictEqual(calls.length, 2);
 	});
@@ -64,7 +64,7 @@ suite('Quiz Service', () => {
 			'code',
 			'What does prisma.users.upsert do in this code?',
 			'It creates a user if no matching wallet exists, otherwise it updates the existing one.',
-			'qwen3:4b',
+			'qwen3.5:4b',
 			fakeCaller
 		);
 		assert.ok(result.includes('wallet_address'));
@@ -82,7 +82,7 @@ suite('Quiz Service', () => {
 			return 'The function validates whether an invitation token is still active. It blocks enrollment when the token has expired.';
 		};
 
-		const result = await evaluateAnswer('code', 'How is velocityScore calculated?', 'It blends slope and volume.', 'qwen3:4b', fakeCaller);
+		const result = await evaluateAnswer('code', 'How is velocityScore calculated?', 'It blends slope and volume.', 'qwen3.5:4b', fakeCaller);
 		assert.ok(result.includes('invitation token'));
 		assert.strictEqual(result.includes('Your answer is close to the core idea'), false);
 	});
