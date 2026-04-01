@@ -1,25 +1,59 @@
-export function buildQuizQuestionPrompt(selectedCode: string): string {
-	return [
+export function buildQuizQuestionPrompt(selectedCode: string, avoidQuestions: string[] = []): string {
+	const lines = [
 		'You are a code comprehension coach.',
 		'Create exactly one beginner-friendly comprehension question about this code.',
 		'The question must be short and focus on a single concept only.',
+		'Ask about the purpose or behavior of the code, not about specific syntax or variable names.',
 		'No multi-part questions.',
 		'Maximum length: 1-2 sentences.',
 		'Do not provide the answer.',
+		'Return only the question text with no preface, no markdown, and no code.',
+		...buildAvoidQuestionLines(avoidQuestions),
 		'',
 		'Code:',
 		selectedCode
-	].join('\n');
+	];
+
+	return lines.join('\n');
+}
+
+export function buildQuizQuestionRepairPrompt(rawOutput: string, selectedCode: string, avoidQuestions: string[] = []): string {
+	const lines = [
+		'Rewrite the following output into exactly one clear beginner-friendly code comprehension question.',
+		'STRICT RULES:',
+		'- Output exactly one question ending with a question mark.',
+		'- No preface, no labels, no markdown, and no code snippets.',
+		'- Focus on one concept only and keep it to 1-2 short sentences.',
+		'- Do not provide the answer.',
+		...buildAvoidQuestionLines(avoidQuestions),
+		'',
+		'Code context:',
+		selectedCode,
+		'',
+		'Output to repair:',
+		rawOutput
+	];
+
+	return lines.join('\n');
 }
 
 export function buildHintPrompt(code: string, question: string): string {
 	return [
 		'You are a code comprehension coach.',
-		'Give one or two complete sentences as a conceptual nudge.',
+		'Give exactly one sentence as a conceptual nudge to help the learner think in the right direction.',
 		'Speak directly to the learner in second person.',
-		'Do not mention specific variable names, function names, API names, or implementation details from the code.',
-		'Point only toward the underlying concept without giving away the answer.',
-		'Make sure the hint is complete and not cut off mid-sentence.',
+		'STRICT RULES:',
+		'- Do NOT mention any specific variable names, function names, method names, API names, library names, or table names from the code.',
+		'- Do NOT describe what the code does or how it works.',
+		'- Do NOT give away the answer or any part of the answer.',
+		'- Only point toward the general programming concept or pattern the learner should think about.',
+			'- Keep the hint tied to the behavior asked in the question, not a generic coding tip.',
+		'- Make sure the hint is one complete sentence, not cut off.',
+		'',
+		'GOOD hint example: "Think about what happens when you need to handle both the case where something already exists and the case where it does not."',
+		'GOOD hint example (loops): "Track what changes on each iteration and why repeating that step matters for the final outcome."',
+		'GOOD hint example (conditionals): "Focus on the condition that decides when the logic takes one path instead of another."',
+		'BAD hint example: "The prisma.users.upsert method finds or creates a user record." (This gives away the answer!)',
 		'',
 		'Code:',
 		code,
@@ -36,6 +70,8 @@ export function buildEvaluatePrompt(code: string, question: string): string {
 		'Reference the actual operations in the code (for example: creating records, looping, condition checks, and saving to the database).',
 		'The explanation must be specific enough that someone who has not seen the code still understands exactly what it is doing.',
 		'Never give a generic answer that could apply to many code snippets; always anchor your explanation to this code.',
+		'If the code is complex, focus your explanation on the single most important thing it does.',
+			'If the question asks about a specific behavior (for example update, validation, branching, loop purpose), keep the explanation centered on that behavior.',
 		'Never reference, quote, or repeat the learner answer.',
 		'Write as a senior developer teaching a junior: direct, plain English, minimal jargon.',
 		'Use a maximum of 2 sentences.',
@@ -73,4 +109,20 @@ export function buildEvaluationRepairPrompt(rawOutput: string, question: string)
 		'Original feedback:',
 		rawOutput
 	].join('\n');
+}
+
+function buildAvoidQuestionLines(avoidQuestions: string[]): string[] {
+	const cleaned = avoidQuestions
+		.map((question) => question.trim())
+		.filter((question) => question.length > 0)
+		.slice(-6);
+
+	if (cleaned.length === 0) {
+		return [];
+	}
+
+	return [
+		'Avoid repeating any of these existing questions:',
+		...cleaned.map((question) => `- ${question}`)
+	];
 }

@@ -3,12 +3,22 @@ import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizServic
 import { QuizWebviewMessage } from './types';
 import { getQuizWebviewHtml } from './quizWebview';
 
+const MAX_GLOBAL_QUESTION_MEMORY = 20;
+const MAX_SELECTION_QUESTION_MEMORY = 8;
+const globalRecentQuestions: string[] = [];
+const recentQuestionsBySelection = new Map<string, string[]>();
+
 export async function startQuizSession(
 	panel: vscode.WebviewPanel,
 	selectedCode: string,
 	evaluatorModel: string
 ): Promise<void> {
-	let currentQuestion = await generateQuizQuestion(selectedCode);
+	const selectionKey = normalizeSelectionKey(selectedCode);
+	const selectionHistory = recentQuestionsBySelection.get(selectionKey) ?? [];
+	const askedQuestions: string[] = [...selectionHistory, ...globalRecentQuestions].slice(-12);
+	let currentQuestion = await generateQuizQuestion(selectedCode, undefined, askedQuestions);
+	askedQuestions.push(currentQuestion);
+	recordQuestion(selectionKey, currentQuestion);
 	let gotItCount = 0;
 	let missedItCount = 0;
 	panel.webview.html = getQuizWebviewHtml(currentQuestion);
@@ -59,7 +69,12 @@ export async function startQuizSession(
 		if (message.command === 'newQuestion') {
 			panel.webview.postMessage({ command: 'setLoading', loading: true });
 			try {
-				currentQuestion = await generateQuizQuestion(selectedCode);
+				currentQuestion = await generateQuizQuestion(selectedCode, undefined, askedQuestions);
+				askedQuestions.push(currentQuestion);
+				if (askedQuestions.length > 12) {
+					askedQuestions.splice(0, askedQuestions.length - 12);
+				}
+				recordQuestion(selectionKey, currentQuestion);
 				panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -76,6 +91,9 @@ export async function startQuizSession(
 		if (message.command === 'resetQuiz') {
 			gotItCount = 0;
 			missedItCount = 0;
+			askedQuestions.length = 0;
+			askedQuestions.push(currentQuestion);
+			recordQuestion(selectionKey, currentQuestion);
 			panel.webview.postMessage({ command: 'resetQuiz' });
 			panel.webview.postMessage({
 				command: 'showSelfGrade',
@@ -104,4 +122,26 @@ export async function startQuizSession(
 			});
 		}
 	});
+}
+
+function normalizeSelectionKey(selectedCode: string): string {
+	return selectedCode
+		.toLowerCase()
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, 600);
+}
+
+function recordQuestion(selectionKey: string, question: string): void {
+	globalRecentQuestions.push(question);
+	if (globalRecentQuestions.length > MAX_GLOBAL_QUESTION_MEMORY) {
+		globalRecentQuestions.splice(0, globalRecentQuestions.length - MAX_GLOBAL_QUESTION_MEMORY);
+	}
+
+	const selectionList = recentQuestionsBySelection.get(selectionKey) ?? [];
+	selectionList.push(question);
+	if (selectionList.length > MAX_SELECTION_QUESTION_MEMORY) {
+		selectionList.splice(0, selectionList.length - MAX_SELECTION_QUESTION_MEMORY);
+	}
+	recentQuestionsBySelection.set(selectionKey, selectionList);
 }
