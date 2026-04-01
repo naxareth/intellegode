@@ -14,10 +14,11 @@ export function activate(context: vscode.ExtensionContext) {
 			return;
 		}
 
-		const selectedCode = editor.document.getText(editor.selection).trim();
+		const fileCode = editor.document.getText();
+		let selectedCode = editor.document.getText(editor.selection).trim();
 		if (!selectedCode) {
-			vscode.window.showWarningMessage('Please highlight a block of code first.');
-			return;
+			selectedCode = fileCode.trim();
+			vscode.window.showInformationMessage('No selection detected. Intellegode will quiz you on the current file.');
 		}
 
 		try {
@@ -28,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
 				{ enableScripts: true }
 			);
 
-			await startQuizSession(panel, selectedCode, EVALUATOR_MODEL);
+			await startQuizSession(panel, selectedCode, fileCode, EVALUATOR_MODEL);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 			vscode.window.showErrorMessage(`Intellegode failed: ${errorMessage}`);

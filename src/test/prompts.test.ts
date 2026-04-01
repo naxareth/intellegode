@@ -3,15 +3,16 @@ import { buildEvaluatePrompt, buildHintPrompt, buildQuizQuestionPrompt } from '.
 
 suite('Prompt Builders', () => {
 	test('buildQuizQuestionPrompt enforces beginner single-concept question', () => {
-		const prompt = buildQuizQuestionPrompt('const x = 1;');
+		const prompt = buildQuizQuestionPrompt('const x = 1;', 'const x = 1;\nconsole.log(x);');
 		assert.ok(prompt.includes('beginner-friendly comprehension question'));
 		assert.ok(prompt.includes('single concept only'));
 		assert.ok(prompt.includes('Ask about the purpose or behavior of the code'));
+		assert.ok(prompt.includes('Anchor the question to concrete behavior from the selected snippet'));
 		assert.ok(prompt.includes('No multi-part questions.'));
 	});
 
 	test('buildQuizQuestionPrompt includes anti-repeat list when provided', () => {
-		const prompt = buildQuizQuestionPrompt('const x = 1;', [
+		const prompt = buildQuizQuestionPrompt('const x = 1;', 'const x = 1;', [
 			'What condition decides which branch runs?',
 			'What is the loop doing each iteration?'
 		]);

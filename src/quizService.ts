@@ -18,20 +18,28 @@ const MIN_HINT_WORDS = 8;
 const MAX_HINT_WORDS = 50;
 const MAX_QUESTION_ATTEMPTS = 3;
 const QUESTION_HISTORY_WINDOW = 8;
-const MAX_QUESTION_CODE_CHARS = 1800;
+const MAX_SELECTED_SNIPPET_CHARS = 1800;
+const MAX_FILE_CONTEXT_CHARS = 3600;
 
 
 export async function generateQuizQuestion(
 	selectedCode: string,
+	fileCodeContext: string,
 	ollamaCaller: OllamaCaller = callOllama,
 	recentQuestions: string[] = []
 ): Promise<string> {
-	const questionCodeContext = prepareQuestionCodeContext(selectedCode);
+	const selectedSnippetContext = prepareContext(selectedCode, MAX_SELECTED_SNIPPET_CHARS);
+	const fileContext = prepareContext(fileCodeContext || selectedCode, MAX_FILE_CONTEXT_CHARS);
 	const seenQuestions = recentQuestions.slice(-QUESTION_HISTORY_WINDOW);
 
 	for (let attempt = 0; attempt < MAX_QUESTION_ATTEMPTS; attempt += 1) {
 		// First request can include model cold-start, so keep this timeout more forgiving.
-		const first = await ollamaCaller(buildQuizQuestionPrompt(questionCodeContext, seenQuestions), undefined, 60, QUIZ_QUESTION_TIMEOUT_MS);
+		const first = await ollamaCaller(
+			buildQuizQuestionPrompt(selectedSnippetContext, fileContext, seenQuestions),
+			undefined,
+			60,
+			QUIZ_QUESTION_TIMEOUT_MS
+		);
 		const normalizedFirst = normalizeQuizQuestionOutput(first);
 		if (normalizedFirst && !isRepeatedQuestion(normalizedFirst, seenQuestions)) {
 			return normalizedFirst;
@@ -42,7 +50,7 @@ export async function generateQuizQuestion(
 		}
 
 		const repaired = await ollamaCaller(
-			buildQuizQuestionRepairPrompt(first, questionCodeContext, seenQuestions),
+			buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, seenQuestions),
 			undefined,
 			80,
 			QUIZ_QUESTION_TIMEOUT_MS
@@ -57,7 +65,7 @@ export async function generateQuizQuestion(
 		}
 	}
 
-	return buildFallbackQuestion(questionCodeContext, seenQuestions);
+	return buildFallbackQuestion(selectedSnippetContext, seenQuestions);
 }
 
 export function normalizeQuizQuestionOutput(raw: string): string | null {
@@ -211,13 +219,13 @@ function pickNonRepeatedQuestion(candidates: string[], recentQuestions: string[]
 	return candidates[0]!;
 }
 
-function prepareQuestionCodeContext(selectedCode: string): string {
-	const trimmed = selectedCode.trim();
-	if (trimmed.length <= MAX_QUESTION_CODE_CHARS) {
+function prepareContext(source: string, maxChars: number): string {
+	const trimmed = source.trim();
+	if (trimmed.length <= maxChars) {
 		return trimmed;
 	}
 
-	const half = Math.floor((MAX_QUESTION_CODE_CHARS - 9) / 2);
+	const half = Math.floor((maxChars - 9) / 2);
 	const head = trimmed.slice(0, half).trimEnd();
 	const tail = trimmed.slice(-half).trimStart();
 	return `${head}\n\n...\n\n${tail}`;

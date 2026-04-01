@@ -1,34 +1,48 @@
-export function buildQuizQuestionPrompt(selectedCode: string, avoidQuestions: string[] = []): string {
+export function buildQuizQuestionPrompt(selectedCode: string, fileContext: string, avoidQuestions: string[] = []): string {
 	const lines = [
 		'You are a code comprehension coach.',
 		'Create exactly one beginner-friendly comprehension question about this code.',
 		'The question must be short and focus on a single concept only.',
 		'Ask about the purpose or behavior of the code, not about specific syntax or variable names.',
+		'Anchor the question to concrete behavior from the selected snippet, not generic coding advice.',
+		'Use the full-file context only to improve accuracy about the selected snippet.',
 		'No multi-part questions.',
 		'Maximum length: 1-2 sentences.',
 		'Do not provide the answer.',
 		'Return only the question text with no preface, no markdown, and no code.',
 		...buildAvoidQuestionLines(avoidQuestions),
 		'',
-		'Code:',
-		selectedCode
+		'Selected snippet:',
+		selectedCode,
+		'',
+		'Full file context:',
+		fileContext
 	];
 
 	return lines.join('\n');
 }
 
-export function buildQuizQuestionRepairPrompt(rawOutput: string, selectedCode: string, avoidQuestions: string[] = []): string {
+export function buildQuizQuestionRepairPrompt(
+	rawOutput: string,
+	selectedCode: string,
+	fileContext: string,
+	avoidQuestions: string[] = []
+): string {
 	const lines = [
 		'Rewrite the following output into exactly one clear beginner-friendly code comprehension question.',
 		'STRICT RULES:',
 		'- Output exactly one question ending with a question mark.',
 		'- No preface, no labels, no markdown, and no code snippets.',
 		'- Focus on one concept only and keep it to 1-2 short sentences.',
+		'- Keep the question focused on what the selected snippet does.',
 		'- Do not provide the answer.',
 		...buildAvoidQuestionLines(avoidQuestions),
 		'',
-		'Code context:',
+		'Selected snippet:',
 		selectedCode,
+		'',
+		'Full file context:',
+		fileContext,
 		'',
 		'Output to repair:',
 		rawOutput
@@ -47,7 +61,7 @@ export function buildHintPrompt(code: string, question: string): string {
 		'- Do NOT describe what the code does or how it works.',
 		'- Do NOT give away the answer or any part of the answer.',
 		'- Only point toward the general programming concept or pattern the learner should think about.',
-			'- Keep the hint tied to the behavior asked in the question, not a generic coding tip.',
+		'- Keep the hint tied to the behavior asked in the question, not a generic coding tip.',
 		'- Make sure the hint is one complete sentence, not cut off.',
 		'',
 		'GOOD hint example: "Think about what happens when you need to handle both the case where something already exists and the case where it does not."',
@@ -71,7 +85,7 @@ export function buildEvaluatePrompt(code: string, question: string): string {
 		'The explanation must be specific enough that someone who has not seen the code still understands exactly what it is doing.',
 		'Never give a generic answer that could apply to many code snippets; always anchor your explanation to this code.',
 		'If the code is complex, focus your explanation on the single most important thing it does.',
-			'If the question asks about a specific behavior (for example update, validation, branching, loop purpose), keep the explanation centered on that behavior.',
+		'If the question asks about a specific behavior (for example update, validation, branching, loop purpose), keep the explanation centered on that behavior.',
 		'Never reference, quote, or repeat the learner answer.',
 		'Write as a senior developer teaching a junior: direct, plain English, minimal jargon.',
 		'Use a maximum of 2 sentences.',

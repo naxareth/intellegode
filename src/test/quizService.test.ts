@@ -52,7 +52,7 @@ suite('Quiz Service', () => {
 			return 'What condition controls whether this block returns early?';
 		};
 
-		const question = await generateQuizQuestion('if (!user) return;', fakeCaller);
+		const question = await generateQuizQuestion('if (!user) return;', 'if (!user) return;', fakeCaller);
 		assert.strictEqual(question, 'What condition controls whether this block returns early?');
 		assert.strictEqual(calls.length, 2);
 	});
@@ -62,6 +62,7 @@ suite('Quiz Service', () => {
 		const fakeCaller = async (): Promise<string> => repeated;
 
 		const question = await generateQuizQuestion(
+			'if (isReady) { runTask(); } else { scheduleRetry(); }',
 			'if (isReady) { runTask(); } else { scheduleRetry(); }',
 			fakeCaller,
 			[repeated]
