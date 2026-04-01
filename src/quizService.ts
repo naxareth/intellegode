@@ -7,8 +7,8 @@ import {
 	buildQuizQuestionPrompt
 } from './prompts';
 
-export type OllamaCaller = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number) => Promise<string>;
-export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number) => Promise<string>;
+export type OllamaCaller = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number, numCtx?: number) => Promise<string>;
+export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number, numCtx?: number) => Promise<string>;
 
 const QUIZ_QUESTION_TIMEOUT_MS = 60000;
 const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 18000;
@@ -17,10 +17,11 @@ const QUIZ_MODEL = 'qwen3.5:4b';
 const MIN_EXPLANATION_WORDS = 10;
 const MIN_HINT_WORDS = 8;
 const MAX_HINT_WORDS = 50;
-const MAX_QUESTION_ATTEMPTS = 3;
+const MAX_QUESTION_ATTEMPTS = 2;
 const QUESTION_HISTORY_WINDOW = 8;
-const MAX_SELECTED_SNIPPET_CHARS = 1800;
+const MAX_SELECTED_SNIPPET_CHARS = 2400;
 const MAX_FILE_CONTEXT_CHARS = 3600;
+const QUESTION_HINT_NUM_CTX = 2048;
 
 
 export async function generateQuizQuestion(
@@ -39,7 +40,8 @@ export async function generateQuizQuestion(
 			buildQuizQuestionPrompt(selectedSnippetContext, fileContext, seenQuestions),
 			QUIZ_MODEL,
 			60,
-			QUIZ_QUESTION_TIMEOUT_MS
+			QUIZ_QUESTION_TIMEOUT_MS,
+			QUESTION_HINT_NUM_CTX
 		);
 		const normalizedFirst = normalizeQuizQuestionOutput(first);
 		if (normalizedFirst && !isRepeatedQuestion(normalizedFirst, seenQuestions)) {
@@ -54,7 +56,8 @@ export async function generateQuizQuestion(
 			buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, seenQuestions),
 			QUIZ_MODEL,
 			80,
-			QUIZ_QUESTION_TIMEOUT_MS
+			QUIZ_QUESTION_TIMEOUT_MS,
+			QUESTION_HINT_NUM_CTX
 		);
 		const normalizedRepaired = normalizeQuizQuestionOutput(repaired);
 		if (normalizedRepaired && !isRepeatedQuestion(normalizedRepaired, seenQuestions)) {
@@ -138,24 +141,26 @@ function isValidQuestion(text: string): boolean {
 
 function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]): string {
 	const codeLower = selectedCode.toLowerCase();
-	if (codeLower.includes('if') || codeLower.includes('else')) {
+
+	// Detect specific patterns in order of specificity
+	if (/math\.(max|min|log|log2|floor|ceil|round|abs|pow|sqrt)/i.test(selectedCode)) {
 		return pickNonRepeatedQuestion(
 			[
-				'Why does this decision check need to happen before the rest of the logic continues?',
-				'How does this conditional guard change what work the code performs next?',
-				'What behavior differs when the decision check evaluates true versus false?'
+				'Why does this code apply a mathematical transformation instead of using the raw value directly?',
+				'How does the math operation here change the scale or range of the input value?',
+				'What would go wrong if this calculation were skipped and the untransformed value were used instead?'
 			],
 			recentQuestions,
 			selectedCode
 		);
 	}
 
-	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(')) {
+	if (codeLower.includes('async ') || codeLower.includes('await ') || codeLower.includes('.then(')) {
 		return pickNonRepeatedQuestion(
 			[
-				'What repeated step in this loop drives the final result?',
-				'How does each iteration move the program closer to its outcome?',
-				'What is the key transformation that happens on every pass through this loop?'
+				'Why does this operation need to be asynchronous instead of completing immediately?',
+				'What external resource or slow process does this code wait for before continuing?',
+				'How does the async flow here prevent the program from blocking while it waits?'
 			],
 			recentQuestions,
 			selectedCode
@@ -165,9 +170,60 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 	if (codeLower.includes('try {') || codeLower.includes('catch')) {
 		return pickNonRepeatedQuestion(
 			[
-				'How does this code keep execution safe when something fails?',
-				'What recovery behavior is triggered when an operation throws an error?',
-				'How does the error-handling path differ from the success path here?'
+				'What specific failure could trigger the error-handling path in this code?',
+				'How does the recovery behavior differ from the normal success path here?',
+				'Why is it important to catch errors at this point rather than letting them propagate?'
+			],
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	if (codeLower.includes('return ')) {
+		return pickNonRepeatedQuestion(
+			[
+				'What transformation does this code apply to its inputs before returning the final value?',
+				'Why is the returned value computed this way instead of being passed through unchanged?',
+				'How does the return value here get used by the code that calls this function?'
+			],
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	if (codeLower.includes('if') || codeLower.includes('else')) {
+		return pickNonRepeatedQuestion(
+			[
+				'What specific condition determines which execution path the code takes here?',
+				'What different outcomes result from the conditional check passing versus failing?',
+				'Why does this decision check need to happen before the rest of the logic can proceed?'
+			],
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(') || codeLower.includes('.filter(') || codeLower.includes('.reduce(')) {
+		return pickNonRepeatedQuestion(
+			[
+				'What transformation does each iteration apply, and how do those steps combine into the final result?',
+				'Why does this code process items one by one in a loop instead of handling the entire collection at once?',
+				'What accumulates or changes on every pass through this loop to produce the end result?'
+			],
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	// Extract function names to make the generic fallback more specific
+	const funcMatch = selectedCode.match(/function\s+(\w+)/i);
+	if (funcMatch) {
+		const funcName = funcMatch[1];
+		return pickNonRepeatedQuestion(
+			[
+				`What specific data transformation does ${funcName} perform on its input?`,
+				`Why is the logic in ${funcName} necessary — what would break if it were removed?`,
+				`How does ${funcName} ensure the output is valid for the code that depends on it?`
 			],
 			recentQuestions,
 			selectedCode
@@ -176,9 +232,9 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 
 	return pickNonRepeatedQuestion(
 		[
-			'What is the most important behavior this code is responsible for?',
-			'What single outcome is this code trying to guarantee?',
-			'What core purpose does this block serve in the larger flow?'
+			'What specific input does this code receive, and how does it transform that input before producing output?',
+			'What would break or behave differently if this block of code were removed entirely?',
+			'What is the one key operation this code performs that the rest of the program depends on?'
 		],
 		recentQuestions,
 		selectedCode
@@ -242,7 +298,7 @@ function hashString(value: string): number {
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
-	const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS);
+	const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS, QUESTION_HINT_NUM_CTX);
 	const normalizedFirst = normalizeHintOutput(first);
 	if (normalizedFirst) {
 		return normalizedFirst;
@@ -252,17 +308,12 @@ export async function generateHint(code: string, question: string, ollamaCaller:
 		buildHintRepairPrompt(first, question),
 		QUIZ_MODEL,
 		120,
-		HINT_SECOND_ATTEMPT_TIMEOUT_MS
+		HINT_SECOND_ATTEMPT_TIMEOUT_MS,
+		QUESTION_HINT_NUM_CTX
 	);
 	const normalizedRepaired = normalizeHintOutput(repaired);
 	if (normalizedRepaired) {
 		return normalizedRepaired;
-	}
-
-	const second = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 180, HINT_SECOND_ATTEMPT_TIMEOUT_MS);
-	const normalizedSecond = normalizeHintOutput(second);
-	if (normalizedSecond) {
-		return normalizedSecond;
 	}
 
 	return buildFallbackHint(question);
@@ -306,7 +357,7 @@ export function normalizeExplanationOutput(raw: string): string | null {
 		return null;
 	}
 
-	const sanitized = limitToSentences(stripLeadingGradeLabels(oneLine), 2);
+	const sanitized = limitToSentences(stripLeadingGradeLabels(oneLine), 3);
 	if (!sanitized) {
 		return null;
 	}
@@ -498,20 +549,74 @@ function normalizeToken(token: string): string {
 function buildGroundedFallbackExplanation(code: string, question: string): string {
 	const codeLower = code.toLowerCase();
 	const questionLower = question.toLowerCase();
+
+	// Detect concrete patterns in the code and build specific fallbacks
+	const patterns: string[] = [];
+
+	// Look for specific named functions
+	const funcMatch = code.match(/function\s+(\w+)/i);
+	const funcName = funcMatch ? funcMatch[1] : null;
+
+	// Check for math operations
+	const mathMatch = code.match(/Math\.(max|min|log|log2|floor|ceil|round|abs|pow|sqrt)/i);
+	if (mathMatch) {
+		patterns.push(`applies Math.${mathMatch[1]} to transform or constrain a numeric value`);
+	}
+
+	// Check for clamping patterns (Math.max + Math.min combo)
+	if (/Math\.max/.test(code) && /Math\.min/.test(code)) {
+		patterns.push('clamps the value to a fixed range so extreme inputs cannot distort the result');
+	}
+
+	// Check for return with computation
+	if (/return\s+[^;]+[+\-*/]/.test(code)) {
+		patterns.push('computes a derived value through arithmetic before returning it');
+	}
+
+	// Check for array methods
+	if (/\.(map|filter|reduce|forEach|find|some|every)\s*\(/.test(code)) {
+		const arrayMethod = code.match(/\.(map|filter|reduce|forEach|find|some|every)\s*\(/)?.[1];
+		patterns.push(`uses .${arrayMethod}() to process each item in a collection`);
+	}
+
+	// Check for async/await
+	if (/\bawait\s/.test(code)) {
+		patterns.push('awaits an asynchronous operation before proceeding with the result');
+	}
+
 	const asksAboutUpdate = /\b(update|updat|upsert|field|column|record|row|table|database)\b/.test(questionLower);
 	if (asksAboutUpdate) {
-		return 'The code updates an existing stored value so later logic reads the latest state instead of stale data. That update keeps related operations consistent and prevents decisions from being made using outdated information.';
+		return `The code writes updated data to storage so all subsequent operations work with the latest state instead of stale values.${patterns.length > 0 ? ` Specifically, it ${patterns[0]}.` : ''} This prevents downstream logic from making decisions based on outdated information.`;
 	}
 
 	if (questionLower.includes('condition') || questionLower.includes('branch') || codeLower.includes('if (') || codeLower.includes('else')) {
-		return 'The code evaluates decision checks and chooses the execution path based on which conditions are true. That branching behavior controls when each block of logic runs and prevents the wrong path from executing.';
+		const condMatch = code.match(/if\s*\(([^)]{1,60})\)/)?.[1];
+		const condDesc = condMatch ? ` by testing whether \`${condMatch.trim()}\`` : '';
+		return `The code uses a conditional check${condDesc} to decide which execution path runs next.${patterns.length > 0 ? ` Along the way, it ${patterns[0]}.` : ''} The branch ensures only the correct logic executes for the current state.`;
 	}
 
 	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(') || codeLower.includes('.reduce(')) {
-		return 'The code repeats a core operation across a collection so each item is processed in a consistent way. The final outcome is built from the combined effect of those repeated steps.';
+		return `The code iterates over a collection, applying a transformation to each item in sequence.${patterns.length > 0 ? ` On each pass, it ${patterns[0]}.` : ''} The final result is assembled from the combined effect of all iterations.`;
 	}
 
-	return 'The code performs a sequence of checks and operations to transform input into a reliable result. The key behavior is that each step prepares the state needed for the next step to work correctly.';
+	if (codeLower.includes('try {') || codeLower.includes('catch')) {
+		return `The code wraps a risky operation in error handling so that failures are caught and managed instead of crashing the program.${patterns.length > 0 ? ` Inside the protected block, it ${patterns[0]}.` : ''} The catch path provides a recovery or fallback when the primary operation fails.`;
+	}
+
+	// Use detected patterns to build a more specific generic fallback
+	if (patterns.length >= 2) {
+		return `The code ${patterns[0]}, then ${patterns[1]}. These steps work together to produce a reliable output from the given input.`;
+	}
+
+	if (patterns.length === 1) {
+		return `The code ${patterns[0]}. This operation transforms the input into the specific output that the rest of the program depends on.`;
+	}
+
+	if (funcName) {
+		return `The function ${funcName} processes its input by applying a series of transformations and checks. The result it returns is shaped so that downstream code can rely on it being in the expected format and range.`;
+	}
+
+	return 'The code transforms its input through a specific sequence of operations, where each step refines or validates the data before the next step uses it. The final output reflects the combined effect of all those transformations.';
 }
 
 function buildFallbackHint(question: string): string {
