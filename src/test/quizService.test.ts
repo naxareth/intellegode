@@ -30,6 +30,12 @@ suite('Quiz Service', () => {
 		assert.strictEqual(normalized, 'think about which checks must pass before any action continues.');
 	});
 
+	test('normalizeHintOutput keeps longer single-sentence hints without aggressive truncation', () => {
+		const raw = 'Focus on how data is validated before processing begins, then notice how each step builds on the previous one so the logic can safely continue through the workflow without breaking later operations.';
+		const normalized = normalizeHintOutput(raw);
+		assert.strictEqual(normalized, raw);
+	});
+
 	test('normalizeQuizQuestionOutput extracts a clean question from malformed output', () => {
 		const raw = "Certainly! Below is the complete function: import genAI from 'genAI'; What decides whether a user is created or updated?";
 		const normalized = normalizeQuizQuestionOutput(raw);
@@ -112,8 +118,8 @@ suite('Quiz Service', () => {
 			'qwen3.5:4b',
 			fakeCaller
 		);
-		assert.ok(result.includes('wallet_address'));
-		assert.ok(result.includes('verified credential'));
+		assert.ok(result.includes('sequence of checks and operations'));
+		assert.ok(result.includes('reliable result'));
 	});
 
 	test('evaluateAnswer prefers valid repaired output over template fallback', async () => {
@@ -148,8 +154,8 @@ suite('Quiz Service', () => {
 
 	test('isContextuallyRelevant handles simple word-form differences', () => {
 		const result = isContextuallyRelevant(
-			'This creates a new user when none exists, otherwise it updates the existing user record.',
-				'What does upsert do here?'
+			'This validator normalizes input values before validating each field.',
+				'How does this validation flow work?'
 		);
 
 		assert.strictEqual(result, true);

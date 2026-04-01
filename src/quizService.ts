@@ -15,9 +15,10 @@ const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 18000;
 const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 22000;
 const MIN_EXPLANATION_WORDS = 10;
 const MIN_HINT_WORDS = 8;
-const MAX_HINT_WORDS = 28;
+const MAX_HINT_WORDS = 50;
 const MAX_QUESTION_ATTEMPTS = 3;
 const QUESTION_HISTORY_WINDOW = 8;
+const MAX_QUESTION_CODE_CHARS = 1800;
 
 
 export async function generateQuizQuestion(
@@ -25,11 +26,12 @@ export async function generateQuizQuestion(
 	ollamaCaller: OllamaCaller = callOllama,
 	recentQuestions: string[] = []
 ): Promise<string> {
+	const questionCodeContext = prepareQuestionCodeContext(selectedCode);
 	const seenQuestions = recentQuestions.slice(-QUESTION_HISTORY_WINDOW);
 
 	for (let attempt = 0; attempt < MAX_QUESTION_ATTEMPTS; attempt += 1) {
 		// First request can include model cold-start, so keep this timeout more forgiving.
-		const first = await ollamaCaller(buildQuizQuestionPrompt(selectedCode, seenQuestions), undefined, 60, QUIZ_QUESTION_TIMEOUT_MS);
+		const first = await ollamaCaller(buildQuizQuestionPrompt(questionCodeContext, seenQuestions), undefined, 60, QUIZ_QUESTION_TIMEOUT_MS);
 		const normalizedFirst = normalizeQuizQuestionOutput(first);
 		if (normalizedFirst && !isRepeatedQuestion(normalizedFirst, seenQuestions)) {
 			return normalizedFirst;
@@ -40,7 +42,7 @@ export async function generateQuizQuestion(
 		}
 
 		const repaired = await ollamaCaller(
-			buildQuizQuestionRepairPrompt(first, selectedCode, seenQuestions),
+			buildQuizQuestionRepairPrompt(first, questionCodeContext, seenQuestions),
 			undefined,
 			80,
 			QUIZ_QUESTION_TIMEOUT_MS
@@ -55,7 +57,7 @@ export async function generateQuizQuestion(
 		}
 	}
 
-	return buildFallbackQuestion(selectedCode, seenQuestions);
+	return buildFallbackQuestion(questionCodeContext, seenQuestions);
 }
 
 export function normalizeQuizQuestionOutput(raw: string): string | null {
@@ -130,43 +132,47 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 	if (codeLower.includes('if') || codeLower.includes('else')) {
 		return pickNonRepeatedQuestion(
 			[
-				'What condition decides which branch of logic runs in this code?',
-				'What input state determines whether this code takes the first path or the alternative path?',
-				'Which boolean check controls the branch this code executes?'
+				'Why does this decision check need to happen before the rest of the logic continues?',
+				'How does this conditional guard change what work the code performs next?',
+				'What behavior differs when the decision check evaluates true versus false?'
 			],
-			recentQuestions
+			recentQuestions,
+			selectedCode
 		);
 	}
 
 	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(')) {
 		return pickNonRepeatedQuestion(
 			[
-				'What is the main purpose of the loop in this code?',
-				'What does each iteration contribute to the final result?',
-				'What value is being accumulated or transformed across iterations?'
+				'What repeated step in this loop drives the final result?',
+				'How does each iteration move the program closer to its outcome?',
+				'What is the key transformation that happens on every pass through this loop?'
 			],
-			recentQuestions
+			recentQuestions,
+			selectedCode
 		);
 	}
 
 	if (codeLower.includes('try {') || codeLower.includes('catch')) {
 		return pickNonRepeatedQuestion(
 			[
-				'How does this code handle failure cases?',
-				'What happens when an operation in this code throws an error?',
-				'Which part of this code is responsible for recovery when something fails?'
+				'How does this code keep execution safe when something fails?',
+				'What recovery behavior is triggered when an operation throws an error?',
+				'How does the error-handling path differ from the success path here?'
 			],
-			recentQuestions
+			recentQuestions,
+			selectedCode
 		);
 	}
 
 	return pickNonRepeatedQuestion(
 		[
-			'What is the main responsibility of this code block?',
-			'What core task is this code trying to complete from start to finish?',
-			'What outcome is this code designed to produce?'
+			'What is the most important behavior this code is responsible for?',
+			'What single outcome is this code trying to guarantee?',
+			'What core purpose does this block serve in the larger flow?'
 		],
-		recentQuestions
+		recentQuestions,
+		selectedCode
 	);
 }
 
@@ -193,14 +199,37 @@ function normalizeQuestionForComparison(question: string): string {
 		.trim();
 }
 
-function pickNonRepeatedQuestion(candidates: string[], recentQuestions: string[]): string {
-	for (const candidate of candidates) {
+function pickNonRepeatedQuestion(candidates: string[], recentQuestions: string[], selectionSeed: string): string {
+	const startIndex = hashString(selectionSeed) % candidates.length;
+	for (let offset = 0; offset < candidates.length; offset += 1) {
+		const candidate = candidates[(startIndex + offset) % candidates.length]!;
 		if (!isRepeatedQuestion(candidate, recentQuestions)) {
 			return candidate;
 		}
 	}
 
 	return candidates[0]!;
+}
+
+function prepareQuestionCodeContext(selectedCode: string): string {
+	const trimmed = selectedCode.trim();
+	if (trimmed.length <= MAX_QUESTION_CODE_CHARS) {
+		return trimmed;
+	}
+
+	const half = Math.floor((MAX_QUESTION_CODE_CHARS - 9) / 2);
+	const head = trimmed.slice(0, half).trimEnd();
+	const tail = trimmed.slice(-half).trimStart();
+	return `${head}\n\n...\n\n${tail}`;
+}
+
+function hashString(value: string): number {
+	let hash = 0;
+	for (let i = 0; i < value.length; i += 1) {
+		hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+	}
+
+	return hash;
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
@@ -339,31 +368,43 @@ export function isContextuallyRelevant(feedback: string, question: string): bool
 	const feedbackTerms = extractKeyTerms(feedback);
 	const contextTerms = extractKeyTerms(question);
 
-	if (contextTerms.has('upsert')) {
-		if (feedbackTerms.has('upsert')) {
-			return true;
-		}
-
-		// Treat create/update wording as an upsert explanation when both are present.
-		const hasCreateStem = feedbackTerms.has('creat') || feedbackTerms.has('create');
-		const hasUpdateStem = feedbackTerms.has('updat') || feedbackTerms.has('update');
-		if (hasCreateStem && hasUpdateStem) {
-			return true;
-		}
-	}
-
 	if (feedbackTerms.size === 0 || contextTerms.size === 0) {
 		return true;
 	}
 
-	let overlap = 0;
 	for (const term of feedbackTerms) {
 		if (contextTerms.has(term)) {
-			overlap += 1;
+			return true;
 		}
 	}
 
-	return overlap >= 1;
+	if (contextTerms.size <= 1) {
+		return true;
+	}
+
+	return hasStemOverlap(feedbackTerms, contextTerms);
+}
+
+function hasStemOverlap(feedbackTerms: Set<string>, contextTerms: Set<string>): boolean {
+	for (const contextTerm of contextTerms) {
+		if (contextTerm.length < 5) {
+			continue;
+		}
+
+		const contextStem = contextTerm.slice(0, 5);
+		for (const feedbackTerm of feedbackTerms) {
+			if (feedbackTerm.length < 5) {
+				continue;
+			}
+
+			const feedbackStem = feedbackTerm.slice(0, 5);
+			if (contextStem === feedbackStem) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 function extractKeyTerms(text: string): Set<string> {
@@ -371,7 +412,7 @@ function extractKeyTerms(text: string): Set<string> {
 	const stopWords = new Set([
 		'the', 'this', 'that', 'with', 'from', 'your', 'you', 'about', 'into', 'what', 'when', 'where', 'which',
 		'because', 'would', 'could', 'should', 'their', 'there', 'these', 'those', 'have', 'has', 'were', 'been',
-		'for', 'and', 'are', 'not', 'but', 'all', 'any', 'one', 'two', 'step', 'code', 'idea', 'part', 'main'
+		'for', 'and', 'are', 'not', 'but', 'all', 'any', 'one', 'two', 'step', 'code', 'idea', 'part', 'main', 'here'
 	]);
 
 	const tokens = withCamelSplit
@@ -429,15 +470,15 @@ function buildGroundedFallbackExplanation(code: string, question: string): strin
 	const codeLower = code.toLowerCase();
 	const questionLower = question.toLowerCase();
 
-	if (questionLower.includes('upsert')) {
-		return 'prisma.users.upsert looks up a user by wallet_address and reuses that row when it already exists; when no match is found, it creates a new user with the student details in the create block. This ensures each student has a user record before the next step writes a verified credential tied to that user and the batch.';
+	if (questionLower.includes('condition') || questionLower.includes('branch') || codeLower.includes('if (') || codeLower.includes('else')) {
+		return 'The code evaluates decision checks and chooses the execution path based on which conditions are true. That branching behavior controls when each block of logic runs and prevents the wrong path from executing.';
 	}
 
-	if (codeLower.includes('for (const') && codeLower.includes('.create(') && codeLower.includes('prisma.')) {
-		return 'The handler first creates a batch record, then loops through each student and writes the related database records needed for that student. It links each created credential back to both the resolved user and the batch so the response can report how many records were processed.';
+	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(') || codeLower.includes('.reduce(')) {
+		return 'The code repeats a core operation across a collection so each item is processed in a consistent way. The final outcome is built from the combined effect of those repeated steps.';
 	}
 
-	return 'The code performs concrete data operations in sequence and persists the result so later steps can safely reference those saved records. It matters because each write depends on the previous one being created correctly.';
+	return 'The code performs a sequence of checks and operations to transform input into a reliable result. The key behavior is that each step prepares the state needed for the next step to work correctly.';
 }
 
 function buildFallbackHint(question: string): string {
