@@ -584,23 +584,42 @@ function buildGroundedFallbackExplanation(code: string, question: string): strin
 		patterns.push('awaits an asynchronous operation before proceeding with the result');
 	}
 
-	const asksAboutUpdate = /\b(update|updat|upsert|field|column|record|row|table|database)\b/.test(questionLower);
-	if (asksAboutUpdate) {
+	// First, match the explanation to what the question actually asked about
+	if (questionLower.includes('async') || questionLower.includes('wait')) {
+		return `The code uses asynchronous execution to prevent the program from freezing while waiting for a slow operation to finish.${patterns.length > 0 ? ` Specifically, it ${patterns[0]}.` : ''} By yielding control while waiting, the rest of the application remains responsive.`;
+	}
+
+	if (questionLower.includes('math') || questionLower.includes('calculation')) {
+		return `The code applies a mathematical operation to normalize, scale, or constrain the data.${patterns.length > 0 ? ` For instance, it ${patterns[0]}.` : ''} Skipping this step would result in pushing raw, potentially invalid values further into the system.`;
+	}
+
+	if (questionLower.includes('return')) {
+		return `The evaluated logic produces a final transformed value that gets passed back to the caller.${patterns.length > 0 ? ` As part of the process, it ${patterns[0]}.` : ''} This prepared output is what the surrounding code relies on.`;
+	}
+
+	if (/\b(update|updat|upsert|field|column|record|row|table|database)\b/.test(questionLower)) {
 		return `The code writes updated data to storage so all subsequent operations work with the latest state instead of stale values.${patterns.length > 0 ? ` Specifically, it ${patterns[0]}.` : ''} This prevents downstream logic from making decisions based on outdated information.`;
 	}
 
-	if (questionLower.includes('condition') || questionLower.includes('branch') || codeLower.includes('if (') || codeLower.includes('else')) {
+	if (questionLower.includes('condition') || questionLower.includes('branch') || questionLower.includes('decision')) {
 		const condMatch = code.match(/if\s*\(([^)]{1,60})\)/)?.[1];
 		const condDesc = condMatch ? ` by testing whether \`${condMatch.trim()}\`` : '';
 		return `The code uses a conditional check${condDesc} to decide which execution path runs next.${patterns.length > 0 ? ` Along the way, it ${patterns[0]}.` : ''} The branch ensures only the correct logic executes for the current state.`;
 	}
 
-	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(') || codeLower.includes('.reduce(')) {
+	if (questionLower.includes('loop') || questionLower.includes('iteration') || questionLower.includes('pass')) {
 		return `The code iterates over a collection, applying a transformation to each item in sequence.${patterns.length > 0 ? ` On each pass, it ${patterns[0]}.` : ''} The final result is assembled from the combined effect of all iterations.`;
 	}
 
-	if (codeLower.includes('try {') || codeLower.includes('catch')) {
-		return `The code wraps a risky operation in error handling so that failures are caught and managed instead of crashing the program.${patterns.length > 0 ? ` Inside the protected block, it ${patterns[0]}.` : ''} The catch path provides a recovery or fallback when the primary operation fails.`;
+	if (questionLower.includes('error') || questionLower.includes('failure') || questionLower.includes('catch') || questionLower.includes('recovery')) {
+		return `The code wraps a risky operation in error handling so failures are caught instead of crashing the program.${patterns.length > 0 ? ` Inside the protected block, it ${patterns[0]}.` : ''} The catch path provides a recovery or fallback when the primary logic fails.`;
+	}
+
+	// If no specific question keywords matched, fall back to what's in the code
+	if (codeLower.includes('if (') || codeLower.includes('else')) {
+		const condMatch = code.match(/if\s*\(([^)]{1,60})\)/)?.[1];
+		const condDesc = condMatch ? ` by testing whether \`${condMatch.trim()}\`` : '';
+		return `The code uses a conditional check${condDesc} to decide which execution path runs next.${patterns.length > 0 ? ` Along the way, it ${patterns[0]}.` : ''} The branch ensures only the correct logic executes for the current state.`;
 	}
 
 	// Use detected patterns to build a more specific generic fallback
