@@ -118,8 +118,8 @@ suite('Quiz Service', () => {
 			'qwen3.5:4b',
 			fakeCaller
 		);
-		assert.ok(result.includes('sequence of checks and operations'));
-		assert.ok(result.includes('reliable result'));
+		assert.ok(result.includes('updates an existing stored value'));
+		assert.ok(result.includes('outdated information'));
 	});
 
 	test('evaluateAnswer prefers valid repaired output over template fallback', async () => {

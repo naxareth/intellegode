@@ -239,6 +239,17 @@ export async function generateHint(code: string, question: string, ollamaCaller:
 		return normalizedFirst;
 	}
 
+	const repaired = await ollamaCaller(
+		buildHintRepairPrompt(first, question),
+		undefined,
+		120,
+		HINT_SECOND_ATTEMPT_TIMEOUT_MS
+	);
+	const normalizedRepaired = normalizeHintOutput(repaired);
+	if (normalizedRepaired) {
+		return normalizedRepaired;
+	}
+
 	const second = await ollamaCaller(buildHintPrompt(code, question), undefined, 180, HINT_SECOND_ATTEMPT_TIMEOUT_MS);
 	const normalizedSecond = normalizeHintOutput(second);
 	if (normalizedSecond) {
@@ -257,14 +268,14 @@ export async function evaluateAnswer(
 ): Promise<string> {
 	const initial = await ollamaCaller(buildEvaluatePrompt(code, question), model, 300, 45000);
 	const normalizedInitial = normalizeExplanationOutput(initial);
-	if (normalizedInitial && isContextuallyRelevant(normalizedInitial, question)) {
+	if (normalizedInitial && isContextuallyRelevant(normalizedInitial, question, code)) {
 		return normalizedInitial;
 	}
 
 	// Retry once by asking Ollama to rewrite malformed output to a concise explanation.
 	const repaired = await ollamaCaller(buildEvaluationRepairPrompt(initial, question), model, 300, 50000);
 	const normalizedRepaired = normalizeExplanationOutput(repaired);
-	if (normalizedRepaired && isContextuallyRelevant(normalizedRepaired, question)) {
+	if (normalizedRepaired && isContextuallyRelevant(normalizedRepaired, question, code)) {
 		return normalizedRepaired;
 	}
 
@@ -364,9 +375,9 @@ export function isValidExplanationOutput(text: string): boolean {
 	return true;
 }
 
-export function isContextuallyRelevant(feedback: string, question: string): boolean {
+export function isContextuallyRelevant(feedback: string, question: string, codeContext: string = ''): boolean {
 	const feedbackTerms = extractKeyTerms(feedback);
-	const contextTerms = extractKeyTerms(question);
+	const contextTerms = mergeContextTerms(question, codeContext);
 
 	if (feedbackTerms.size === 0 || contextTerms.size === 0) {
 		return true;
@@ -378,11 +389,20 @@ export function isContextuallyRelevant(feedback: string, question: string): bool
 		}
 	}
 
-	if (contextTerms.size <= 1) {
-		return true;
+	return hasStemOverlap(feedbackTerms, contextTerms);
+}
+
+function mergeContextTerms(question: string, codeContext: string): Set<string> {
+	const merged = new Set<string>();
+	for (const term of extractKeyTerms(question)) {
+		merged.add(term);
 	}
 
-	return hasStemOverlap(feedbackTerms, contextTerms);
+	for (const term of extractKeyTerms(codeContext)) {
+		merged.add(term);
+	}
+
+	return merged;
 }
 
 function hasStemOverlap(feedbackTerms: Set<string>, contextTerms: Set<string>): boolean {
@@ -469,6 +489,10 @@ function normalizeToken(token: string): string {
 function buildGroundedFallbackExplanation(code: string, question: string): string {
 	const codeLower = code.toLowerCase();
 	const questionLower = question.toLowerCase();
+	const asksAboutUpdate = /\b(update|updat|upsert|field|column|record|row|table|database)\b/.test(questionLower);
+	if (asksAboutUpdate) {
+		return 'The code updates an existing stored value so later logic reads the latest state instead of stale data. That update keeps related operations consistent and prevents decisions from being made using outdated information.';
+	}
 
 	if (questionLower.includes('condition') || questionLower.includes('branch') || codeLower.includes('if (') || codeLower.includes('else')) {
 		return 'The code evaluates decision checks and chooses the execution path based on which conditions are true. That branching behavior controls when each block of logic runs and prevents the wrong path from executing.';
@@ -483,6 +507,10 @@ function buildGroundedFallbackExplanation(code: string, question: string): strin
 
 function buildFallbackHint(question: string): string {
 	const lowered = question.toLowerCase();
+	if (/\b(update|field|column|record|row|table|database)\b/.test(lowered)) {
+		return 'Think about why the code must write a new value before later steps can safely trust and use that data.';
+	}
+
 	if (lowered.includes('condition') || lowered.includes('branch')) {
 		return 'Focus on what boolean check must be true before the code takes each path.';
 	}
@@ -496,4 +524,21 @@ function buildFallbackHint(question: string): string {
 	}
 
 	return 'Focus on the key decision or state change that controls the overall behavior in this code.';
+}
+
+function buildHintRepairPrompt(rawOutput: string, question: string): string {
+	return [
+		'Rewrite this into exactly one concise conceptual hint for the learner.',
+		'STRICT RULES:',
+		'- One sentence only.',
+		'- Keep it conceptual; do not mention exact variable, function, API, or table names.',
+		'- Do not reveal the answer.',
+		'- Keep it directly relevant to the question context.',
+		'',
+		'Question context:',
+		question,
+		'',
+		'Original hint output:',
+		rawOutput
+	].join('\n');
 }
