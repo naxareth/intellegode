@@ -3,6 +3,7 @@ import {
 	buildEvaluatePrompt,
 	buildEvaluationRepairPrompt,
 	buildHintPrompt,
+	buildQuizQuestionRepairPrompt,
 	buildQuizQuestionPrompt
 } from './prompts';
 
@@ -16,8 +17,103 @@ const MIN_EXPLANATION_WORDS = 6;
 
 export async function generateQuizQuestion(selectedCode: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
 	// First request can include model cold-start, so keep this timeout more forgiving.
-	const result = await ollamaCaller(buildQuizQuestionPrompt(selectedCode), undefined, 60, QUIZ_QUESTION_TIMEOUT_MS);
-	return result || 'No question was generated.';
+	const first = await ollamaCaller(buildQuizQuestionPrompt(selectedCode), undefined, 60, QUIZ_QUESTION_TIMEOUT_MS);
+	const normalizedFirst = normalizeQuizQuestionOutput(first);
+	if (normalizedFirst) {
+		return normalizedFirst;
+	}
+
+	const repaired = await ollamaCaller(buildQuizQuestionRepairPrompt(first, selectedCode), undefined, 80, QUIZ_QUESTION_TIMEOUT_MS);
+	const normalizedRepaired = normalizeQuizQuestionOutput(repaired);
+	if (normalizedRepaired) {
+		return normalizedRepaired;
+	}
+
+	return buildFallbackQuestion(selectedCode);
+}
+
+export function normalizeQuizQuestionOutput(raw: string): string | null {
+	const flattened = raw.replace(/\r?\n+/g, ' ').trim();
+	if (!flattened) {
+		return null;
+	}
+
+	const withoutCodeFences = flattened
+		.replace(/```[\s\S]*?```/g, ' ')
+		.replace(/`[^`]*`/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+
+	const deLabeled = withoutCodeFences
+		.replace(/^\s*(question|comprehension check|quiz question)\s*[:\-]\s*/i, '')
+		.replace(/^\s*(sure|certainly|here(?:\s+is|\s*'s)|below)\b[^.?!]*[.?!]\s*/i, '')
+		.trim();
+
+	if (!deLabeled) {
+		return null;
+	}
+
+	const starterMatches = Array.from(
+		deLabeled.matchAll(/\b(what|why|how|which|when|where|who|does)\b[^?]{4,200}\?/ig)
+	);
+	for (let i = starterMatches.length - 1; i >= 0; i -= 1) {
+		const starterCandidate = starterMatches[i][0].replace(/\s+/g, ' ').trim();
+		if (isValidQuestion(starterCandidate)) {
+			return starterCandidate;
+		}
+	}
+
+	const candidateMatches = deLabeled.match(/[A-Z][^?]{8,220}\?/g) ?? [];
+	for (const rawCandidate of candidateMatches) {
+		const candidate = rawCandidate.replace(/^[^A-Za-z]+/, '').replace(/\s+/g, ' ').trim();
+		if (isValidQuestion(candidate)) {
+			return candidate;
+		}
+	}
+
+	const fallbackCandidate = deLabeled.replace(/\s+/g, ' ').trim();
+	if (!isValidQuestion(fallbackCandidate)) {
+		return null;
+	}
+
+	return fallbackCandidate;
+}
+
+function isValidQuestion(text: string): boolean {
+	if (text.length < 10 || text.length > 220) {
+		return false;
+	}
+
+	if (!text.includes('?')) {
+		return false;
+	}
+
+	if (/\b(import|function|class|return\s+|const\s+|let\s+|var\s+)\b/i.test(text)) {
+		return false;
+	}
+
+	if (/^\s*["'`]/.test(text)) {
+		return false;
+	}
+
+	return true;
+}
+
+function buildFallbackQuestion(selectedCode: string): string {
+	const codeLower = selectedCode.toLowerCase();
+	if (codeLower.includes('if') || codeLower.includes('else')) {
+		return 'What condition decides which branch of logic runs in this code?';
+	}
+
+	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(')) {
+		return 'What is the main purpose of the loop in this code?';
+	}
+
+	if (codeLower.includes('try {') || codeLower.includes('catch')) {
+		return 'How does this code handle failure cases?';
+	}
+
+	return 'What is the main responsibility of this code block?';
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {

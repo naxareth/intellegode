@@ -6,9 +6,27 @@ export function buildQuizQuestionPrompt(selectedCode: string): string {
 		'No multi-part questions.',
 		'Maximum length: 1-2 sentences.',
 		'Do not provide the answer.',
+		'Return only the question text with no preface, no markdown, and no code.',
 		'',
 		'Code:',
 		selectedCode
+	].join('\n');
+}
+
+export function buildQuizQuestionRepairPrompt(rawOutput: string, selectedCode: string): string {
+	return [
+		'Rewrite the following output into exactly one clear beginner-friendly code comprehension question.',
+		'STRICT RULES:',
+		'- Output exactly one question ending with a question mark.',
+		'- No preface, no labels, no markdown, and no code snippets.',
+		'- Focus on one concept only and keep it to 1-2 short sentences.',
+		'- Do not provide the answer.',
+		'',
+		'Code context:',
+		selectedCode,
+		'',
+		'Output to repair:',
+		rawOutput
 	].join('\n');
 }
 

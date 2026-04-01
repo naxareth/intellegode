@@ -1,9 +1,11 @@
 import * as assert from 'assert';
 import {
 	evaluateAnswer,
+	generateQuizQuestion,
 	isContextuallyRelevant,
 	isValidExplanationOutput,
-	normalizeExplanationOutput
+	normalizeExplanationOutput,
+	normalizeQuizQuestionOutput
 } from '../quizService';
 
 suite('Quiz Service', () => {
@@ -18,6 +20,27 @@ suite('Quiz Service', () => {
 	test('isValidExplanationOutput rejects labels and very short text', () => {
 		assert.strictEqual(isValidExplanationOutput('[PASS] You are right.'), false);
 		assert.strictEqual(isValidExplanationOutput('Too short to be useful.'), false);
+	});
+
+	test('normalizeQuizQuestionOutput extracts a clean question from malformed output', () => {
+		const raw = "Certainly! Below is the complete function: import genAI from 'genAI'; What decides whether a user is created or updated?";
+		const normalized = normalizeQuizQuestionOutput(raw);
+		assert.strictEqual(normalized, 'What decides whether a user is created or updated?');
+	});
+
+	test('generateQuizQuestion retries with repair prompt when first output is malformed', async () => {
+		const calls: string[] = [];
+		const fakeCaller = async (prompt: string): Promise<string> => {
+			calls.push(prompt);
+			if (calls.length === 1) {
+				return "Certainly! Here is the code: import x from 'y';";
+			}
+			return 'What condition controls whether this block returns early?';
+		};
+
+		const question = await generateQuizQuestion('if (!user) return;', fakeCaller);
+		assert.strictEqual(question, 'What condition controls whether this block returns early?');
+		assert.strictEqual(calls.length, 2);
 	});
 
 	test('evaluateAnswer retries once for malformed output', async () => {
