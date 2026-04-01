@@ -2,8 +2,9 @@ import { OllamaGenerateResponse } from './types';
 
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
 const OLLAMA_TAGS_URL = 'http://localhost:11434/api/tags';
-const DEFAULT_OLLAMA_MODEL = 'qwen2.5:3b';
-const PREFERRED_FALLBACK_MODELS = ['qwen2.5:3b', 'qwen3:4b', 'qwen3.5:4b'];
+const DEFAULT_OLLAMA_MODEL = 'qwen3.5:4b';
+const PREFERRED_FALLBACK_MODELS = ['qwen3.5:4b', 'qwen3:4b', 'qwen2.5:3b'];
+const DEFAULT_NUM_CTX = 4096;
 
 type OllamaTagsResponse = {
 	models?: Array<{ name?: string }>;
@@ -77,7 +78,7 @@ async function generateWithModel(
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), timeoutMs);
 	const shouldForceCpu = generateOptions.forceCpu || process.env.INTELLEGODE_OLLAMA_FORCE_CPU === '1';
-	const numCtx = generateOptions.reduceContext ? 512 : 1024;
+	const numCtx = generateOptions.reduceContext ? 1024 : DEFAULT_NUM_CTX;
 
 	try {
 		const response = await fetch(OLLAMA_URL, {

@@ -13,6 +13,7 @@ export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?:
 const QUIZ_QUESTION_TIMEOUT_MS = 60000;
 const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 18000;
 const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 22000;
+const QUIZ_MODEL = 'qwen3.5:4b';
 const MIN_EXPLANATION_WORDS = 10;
 const MIN_HINT_WORDS = 8;
 const MAX_HINT_WORDS = 50;
@@ -36,7 +37,7 @@ export async function generateQuizQuestion(
 		// First request can include model cold-start, so keep this timeout more forgiving.
 		const first = await ollamaCaller(
 			buildQuizQuestionPrompt(selectedSnippetContext, fileContext, seenQuestions),
-			undefined,
+			QUIZ_MODEL,
 			60,
 			QUIZ_QUESTION_TIMEOUT_MS
 		);
@@ -51,7 +52,7 @@ export async function generateQuizQuestion(
 
 		const repaired = await ollamaCaller(
 			buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, seenQuestions),
-			undefined,
+			QUIZ_MODEL,
 			80,
 			QUIZ_QUESTION_TIMEOUT_MS
 		);
@@ -241,7 +242,7 @@ function hashString(value: string): number {
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
-	const first = await ollamaCaller(buildHintPrompt(code, question), undefined, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS);
+	const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS);
 	const normalizedFirst = normalizeHintOutput(first);
 	if (normalizedFirst) {
 		return normalizedFirst;
@@ -249,7 +250,7 @@ export async function generateHint(code: string, question: string, ollamaCaller:
 
 	const repaired = await ollamaCaller(
 		buildHintRepairPrompt(first, question),
-		undefined,
+		QUIZ_MODEL,
 		120,
 		HINT_SECOND_ATTEMPT_TIMEOUT_MS
 	);
@@ -258,7 +259,7 @@ export async function generateHint(code: string, question: string, ollamaCaller:
 		return normalizedRepaired;
 	}
 
-	const second = await ollamaCaller(buildHintPrompt(code, question), undefined, 180, HINT_SECOND_ATTEMPT_TIMEOUT_MS);
+	const second = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 180, HINT_SECOND_ATTEMPT_TIMEOUT_MS);
 	const normalizedSecond = normalizeHintOutput(second);
 	if (normalizedSecond) {
 		return normalizedSecond;
