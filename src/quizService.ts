@@ -142,7 +142,8 @@ function isValidQuestion(text: string): boolean {
 function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]): string {
 	const codeLower = selectedCode.toLowerCase();
 
-	// Detect specific patterns in order of specificity
+	// Detect specific patterns in order of specificity (core logic > structural wrappers)
+	
 	if (/math\.(max|min|log|log2|floor|ceil|round|abs|pow|sqrt)/i.test(selectedCode)) {
 		return pickNonRepeatedQuestion(
 			[
@@ -155,12 +156,24 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 		);
 	}
 
-	if (codeLower.includes('async ') || codeLower.includes('await ') || codeLower.includes('.then(')) {
+	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(') || codeLower.includes('.filter(') || codeLower.includes('.reduce(')) {
 		return pickNonRepeatedQuestion(
 			[
-				'Why does this operation need to be asynchronous instead of completing immediately?',
-				'What external resource or slow process does this code wait for before continuing?',
-				'How does the async flow here prevent the program from blocking while it waits?'
+				'What transformation does each iteration apply, and how do those steps combine into the final result?',
+				'Why does this code process items one by one in a loop instead of handling the entire collection at once?',
+				'What accumulates or changes on every pass through this loop to produce the end result?'
+			],
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	if (codeLower.includes('if') || codeLower.includes('else')) {
+		return pickNonRepeatedQuestion(
+			[
+				'What specific condition determines which execution path the code takes here?',
+				'What different outcomes result from the conditional check passing versus failing?',
+				'Why does this decision check need to happen before the rest of the logic can proceed?'
 			],
 			recentQuestions,
 			selectedCode
@@ -191,24 +204,13 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 		);
 	}
 
-	if (codeLower.includes('if') || codeLower.includes('else')) {
+	// Async is extremely common, so evaluate it last to prevent it from shadowing core logic
+	if (codeLower.includes('async ') || codeLower.includes('await ') || codeLower.includes('.then(')) {
 		return pickNonRepeatedQuestion(
 			[
-				'What specific condition determines which execution path the code takes here?',
-				'What different outcomes result from the conditional check passing versus failing?',
-				'Why does this decision check need to happen before the rest of the logic can proceed?'
-			],
-			recentQuestions,
-			selectedCode
-		);
-	}
-
-	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(') || codeLower.includes('.filter(') || codeLower.includes('.reduce(')) {
-		return pickNonRepeatedQuestion(
-			[
-				'What transformation does each iteration apply, and how do those steps combine into the final result?',
-				'Why does this code process items one by one in a loop instead of handling the entire collection at once?',
-				'What accumulates or changes on every pass through this loop to produce the end result?'
+				'Why does this operation need to be asynchronous instead of completing immediately?',
+				'What external resource or slow process does this code wait for before continuing?',
+				'How does the async flow here prevent the program from blocking while it waits?'
 			],
 			recentQuestions,
 			selectedCode
