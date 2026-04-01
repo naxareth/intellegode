@@ -5,6 +5,7 @@ import {
 	isContextuallyRelevant,
 	isValidExplanationOutput,
 	normalizeExplanationOutput,
+	normalizeHintOutput,
 	normalizeQuizQuestionOutput
 } from '../quizService';
 
@@ -20,6 +21,13 @@ suite('Quiz Service', () => {
 	test('isValidExplanationOutput rejects labels and very short text', () => {
 		assert.strictEqual(isValidExplanationOutput('[PASS] You are right.'), false);
 		assert.strictEqual(isValidExplanationOutput('Too short to be useful.'), false);
+		assert.strictEqual(isValidExplanationOutput('The condition that decides which branch of logic runs.'), false);
+	});
+
+	test('normalizeHintOutput compresses noisy multi-part hint into one conceptual sentence', () => {
+		const raw = 'In the provided code, think about which checks must pass before any action continues. 1. **Condition A**: The code checks if (skill.health_score >= 70). 2. **Condition B**: It also checks marketData.';
+		const normalized = normalizeHintOutput(raw);
+		assert.strictEqual(normalized, 'think about which checks must pass before any action continues.');
 	});
 
 	test('normalizeQuizQuestionOutput extracts a clean question from malformed output', () => {

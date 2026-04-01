@@ -13,7 +13,9 @@ export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?:
 const QUIZ_QUESTION_TIMEOUT_MS = 60000;
 const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 18000;
 const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 22000;
-const MIN_EXPLANATION_WORDS = 6;
+const MIN_EXPLANATION_WORDS = 10;
+const MIN_HINT_WORDS = 8;
+const MAX_HINT_WORDS = 28;
 
 export async function generateQuizQuestion(selectedCode: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
 	// First request can include model cold-start, so keep this timeout more forgiving.
@@ -118,12 +120,18 @@ function buildFallbackQuestion(selectedCode: string): string {
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
 	const first = await ollamaCaller(buildHintPrompt(code, question), undefined, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS);
-	if (first && looksComplete(first)) {
-		return first;
+	const normalizedFirst = normalizeHintOutput(first);
+	if (normalizedFirst) {
+		return normalizedFirst;
 	}
 
 	const second = await ollamaCaller(buildHintPrompt(code, question), undefined, 180, HINT_SECOND_ATTEMPT_TIMEOUT_MS);
-	return second || first || 'No hint was generated.';
+	const normalizedSecond = normalizeHintOutput(second);
+	if (normalizedSecond) {
+		return normalizedSecond;
+	}
+
+	return buildFallbackHint(question);
 }
 
 export async function evaluateAnswer(
@@ -164,7 +172,7 @@ export function normalizeExplanationOutput(raw: string): string | null {
 		return null;
 	}
 
-	const sanitized = stripLeadingGradeLabels(oneLine);
+	const sanitized = limitToSentences(stripLeadingGradeLabels(oneLine), 2);
 	if (!sanitized) {
 		return null;
 	}
@@ -174,6 +182,55 @@ export function normalizeExplanationOutput(raw: string): string | null {
 	}
 
 	return sanitized;
+}
+
+export function normalizeHintOutput(raw: string): string | null {
+	const flattened = raw.replace(/\r?\n+/g, ' ').trim();
+	if (!flattened) {
+		return null;
+	}
+
+	const sanitized = flattened
+		.replace(/```[\s\S]*?```/g, ' ')
+		.replace(/`[^`]*`/g, ' ')
+		.replace(/\*\*/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+
+	if (!sanitized) {
+		return null;
+	}
+
+	const sentenceMatch = sanitized.match(/[^.!?]{10,220}[.!?]/g) ?? [];
+	const primarySentence = sentenceMatch.length > 0 ? sentenceMatch[0]!.trim() : sanitized;
+	const withoutLeadingList = primarySentence
+		.replace(/^\s*[-*\d.\)\s]+/, '')
+		.replace(/^\s*in the provided code\s*,?\s*/i, '')
+		.trim();
+
+	if (!withoutLeadingList) {
+		return null;
+	}
+
+	if (/\b(import|function|class|const|let|var|return|if\s*\(|for\s*\(|while\s*\()/i.test(withoutLeadingList)) {
+		return null;
+	}
+
+	if (/[A-Za-z]+_[A-Za-z]+/.test(withoutLeadingList) || /[A-Za-z]+\.[A-Za-z]+/.test(withoutLeadingList)) {
+		return null;
+	}
+
+	const words = withoutLeadingList.split(/\s+/).filter(Boolean);
+	if (words.length < MIN_HINT_WORDS) {
+		return null;
+	}
+
+	const clipped = words.slice(0, MAX_HINT_WORDS).join(' ').replace(/[,:;\-\s]+$/, '').trim();
+	if (!clipped) {
+		return null;
+	}
+
+	return /[.!?]$/.test(clipped) ? clipped : `${clipped}.`;
 }
 
 export function isValidExplanationOutput(text: string): boolean {
@@ -243,9 +300,17 @@ function extractKeyTerms(text: string): Set<string> {
 	return new Set(tokens);
 }
 
-function looksComplete(text: string): boolean {
-	const trimmed = text.trim();
-	return /[.!?]$/.test(trimmed);
+function limitToSentences(text: string, maxSentences: number): string {
+	const matches = text.match(/[^.!?]+[.!?]/g);
+	if (!matches || matches.length === 0) {
+		return text.trim();
+	}
+
+	return matches
+		.slice(0, maxSentences)
+		.map((s) => s.trim())
+		.join(' ')
+		.trim();
 }
 
 function stripLeadingGradeLabels(text: string): string {
@@ -288,4 +353,21 @@ function buildGroundedFallbackExplanation(code: string, question: string): strin
 	}
 
 	return 'The code performs concrete data operations in sequence and persists the result so later steps can safely reference those saved records. It matters because each write depends on the previous one being created correctly.';
+}
+
+function buildFallbackHint(question: string): string {
+	const lowered = question.toLowerCase();
+	if (lowered.includes('condition') || lowered.includes('branch')) {
+		return 'Focus on what boolean check must be true before the code takes each path.';
+	}
+
+	if (lowered.includes('loop') || lowered.includes('iterate')) {
+		return 'Track what changes on each pass and what final result those repeated steps build.';
+	}
+
+	if (lowered.includes('upsert') || lowered.includes('create') || lowered.includes('update')) {
+		return 'Think about how the logic handles both already-existing data and newly-missing data.';
+	}
+
+	return 'Focus on the key decision or state change that controls the overall behavior in this code.';
 }
