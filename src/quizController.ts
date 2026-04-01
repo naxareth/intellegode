@@ -8,7 +8,9 @@ export async function startQuizSession(
 	selectedCode: string,
 	evaluatorModel: string
 ): Promise<void> {
-	let currentQuestion = await generateQuizQuestion(selectedCode);
+	const askedQuestions: string[] = [];
+	let currentQuestion = await generateQuizQuestion(selectedCode, undefined, askedQuestions);
+	askedQuestions.push(currentQuestion);
 	let gotItCount = 0;
 	let missedItCount = 0;
 	panel.webview.html = getQuizWebviewHtml(currentQuestion);
@@ -59,7 +61,11 @@ export async function startQuizSession(
 		if (message.command === 'newQuestion') {
 			panel.webview.postMessage({ command: 'setLoading', loading: true });
 			try {
-				currentQuestion = await generateQuizQuestion(selectedCode);
+				currentQuestion = await generateQuizQuestion(selectedCode, undefined, askedQuestions);
+				askedQuestions.push(currentQuestion);
+				if (askedQuestions.length > 12) {
+					askedQuestions.splice(0, askedQuestions.length - 12);
+				}
 				panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -76,6 +82,8 @@ export async function startQuizSession(
 		if (message.command === 'resetQuiz') {
 			gotItCount = 0;
 			missedItCount = 0;
+			askedQuestions.length = 0;
+			askedQuestions.push(currentQuestion);
 			panel.webview.postMessage({ command: 'resetQuiz' });
 			panel.webview.postMessage({
 				command: 'showSelfGrade',

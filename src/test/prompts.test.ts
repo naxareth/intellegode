@@ -9,6 +9,16 @@ suite('Prompt Builders', () => {
 		assert.ok(prompt.includes('No multi-part questions.'));
 	});
 
+	test('buildQuizQuestionPrompt includes anti-repeat list when provided', () => {
+		const prompt = buildQuizQuestionPrompt('const x = 1;', [
+			'What condition decides which branch runs?',
+			'What is the loop doing each iteration?'
+		]);
+		assert.ok(prompt.includes('Avoid repeating any of these existing questions:'));
+		assert.ok(prompt.includes('- What condition decides which branch runs?'));
+		assert.ok(prompt.includes('- What is the loop doing each iteration?'));
+	});
+
 	test('buildHintPrompt enforces conceptual-only hint', () => {
 		const prompt = buildHintPrompt('function a() {}', 'What does this do?');
 		assert.ok(prompt.includes('conceptual nudge'));

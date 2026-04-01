@@ -1,5 +1,5 @@
-export function buildQuizQuestionPrompt(selectedCode: string): string {
-	return [
+export function buildQuizQuestionPrompt(selectedCode: string, avoidQuestions: string[] = []): string {
+	const lines = [
 		'You are a code comprehension coach.',
 		'Create exactly one beginner-friendly comprehension question about this code.',
 		'The question must be short and focus on a single concept only.',
@@ -7,27 +7,33 @@ export function buildQuizQuestionPrompt(selectedCode: string): string {
 		'Maximum length: 1-2 sentences.',
 		'Do not provide the answer.',
 		'Return only the question text with no preface, no markdown, and no code.',
+		...buildAvoidQuestionLines(avoidQuestions),
 		'',
 		'Code:',
 		selectedCode
-	].join('\n');
+	];
+
+	return lines.join('\n');
 }
 
-export function buildQuizQuestionRepairPrompt(rawOutput: string, selectedCode: string): string {
-	return [
+export function buildQuizQuestionRepairPrompt(rawOutput: string, selectedCode: string, avoidQuestions: string[] = []): string {
+	const lines = [
 		'Rewrite the following output into exactly one clear beginner-friendly code comprehension question.',
 		'STRICT RULES:',
 		'- Output exactly one question ending with a question mark.',
 		'- No preface, no labels, no markdown, and no code snippets.',
 		'- Focus on one concept only and keep it to 1-2 short sentences.',
 		'- Do not provide the answer.',
+		...buildAvoidQuestionLines(avoidQuestions),
 		'',
 		'Code context:',
 		selectedCode,
 		'',
 		'Output to repair:',
 		rawOutput
-	].join('\n');
+	];
+
+	return lines.join('\n');
 }
 
 export function buildHintPrompt(code: string, question: string): string {
@@ -98,4 +104,20 @@ export function buildEvaluationRepairPrompt(rawOutput: string, question: string)
 		'Original feedback:',
 		rawOutput
 	].join('\n');
+}
+
+function buildAvoidQuestionLines(avoidQuestions: string[]): string[] {
+	const cleaned = avoidQuestions
+		.map((question) => question.trim())
+		.filter((question) => question.length > 0)
+		.slice(-6);
+
+	if (cleaned.length === 0) {
+		return [];
+	}
+
+	return [
+		'Avoid repeating any of these existing questions:',
+		...cleaned.map((question) => `- ${question}`)
+	];
 }

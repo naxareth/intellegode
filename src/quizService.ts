@@ -16,22 +16,46 @@ const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 22000;
 const MIN_EXPLANATION_WORDS = 10;
 const MIN_HINT_WORDS = 8;
 const MAX_HINT_WORDS = 28;
+const MAX_QUESTION_ATTEMPTS = 3;
+const QUESTION_HISTORY_WINDOW = 8;
 
-export async function generateQuizQuestion(selectedCode: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
-	// First request can include model cold-start, so keep this timeout more forgiving.
-	const first = await ollamaCaller(buildQuizQuestionPrompt(selectedCode), undefined, 60, QUIZ_QUESTION_TIMEOUT_MS);
-	const normalizedFirst = normalizeQuizQuestionOutput(first);
-	if (normalizedFirst) {
-		return normalizedFirst;
+
+export async function generateQuizQuestion(
+	selectedCode: string,
+	ollamaCaller: OllamaCaller = callOllama,
+	recentQuestions: string[] = []
+): Promise<string> {
+	const seenQuestions = recentQuestions.slice(-QUESTION_HISTORY_WINDOW);
+
+	for (let attempt = 0; attempt < MAX_QUESTION_ATTEMPTS; attempt += 1) {
+		// First request can include model cold-start, so keep this timeout more forgiving.
+		const first = await ollamaCaller(buildQuizQuestionPrompt(selectedCode, seenQuestions), undefined, 60, QUIZ_QUESTION_TIMEOUT_MS);
+		const normalizedFirst = normalizeQuizQuestionOutput(first);
+		if (normalizedFirst && !isRepeatedQuestion(normalizedFirst, seenQuestions)) {
+			return normalizedFirst;
+		}
+
+		if (normalizedFirst) {
+			seenQuestions.push(normalizedFirst);
+		}
+
+		const repaired = await ollamaCaller(
+			buildQuizQuestionRepairPrompt(first, selectedCode, seenQuestions),
+			undefined,
+			80,
+			QUIZ_QUESTION_TIMEOUT_MS
+		);
+		const normalizedRepaired = normalizeQuizQuestionOutput(repaired);
+		if (normalizedRepaired && !isRepeatedQuestion(normalizedRepaired, seenQuestions)) {
+			return normalizedRepaired;
+		}
+
+		if (normalizedRepaired) {
+			seenQuestions.push(normalizedRepaired);
+		}
 	}
 
-	const repaired = await ollamaCaller(buildQuizQuestionRepairPrompt(first, selectedCode), undefined, 80, QUIZ_QUESTION_TIMEOUT_MS);
-	const normalizedRepaired = normalizeQuizQuestionOutput(repaired);
-	if (normalizedRepaired) {
-		return normalizedRepaired;
-	}
-
-	return buildFallbackQuestion(selectedCode);
+	return buildFallbackQuestion(selectedCode, seenQuestions);
 }
 
 export function normalizeQuizQuestionOutput(raw: string): string | null {
@@ -101,21 +125,82 @@ function isValidQuestion(text: string): boolean {
 	return true;
 }
 
-function buildFallbackQuestion(selectedCode: string): string {
+function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]): string {
 	const codeLower = selectedCode.toLowerCase();
 	if (codeLower.includes('if') || codeLower.includes('else')) {
-		return 'What condition decides which branch of logic runs in this code?';
+		return pickNonRepeatedQuestion(
+			[
+				'What condition decides which branch of logic runs in this code?',
+				'What input state determines whether this code takes the first path or the alternative path?',
+				'Which boolean check controls the branch this code executes?'
+			],
+			recentQuestions
+		);
 	}
 
 	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(')) {
-		return 'What is the main purpose of the loop in this code?';
+		return pickNonRepeatedQuestion(
+			[
+				'What is the main purpose of the loop in this code?',
+				'What does each iteration contribute to the final result?',
+				'What value is being accumulated or transformed across iterations?'
+			],
+			recentQuestions
+		);
 	}
 
 	if (codeLower.includes('try {') || codeLower.includes('catch')) {
-		return 'How does this code handle failure cases?';
+		return pickNonRepeatedQuestion(
+			[
+				'How does this code handle failure cases?',
+				'What happens when an operation in this code throws an error?',
+				'Which part of this code is responsible for recovery when something fails?'
+			],
+			recentQuestions
+		);
 	}
 
-	return 'What is the main responsibility of this code block?';
+	return pickNonRepeatedQuestion(
+		[
+			'What is the main responsibility of this code block?',
+			'What core task is this code trying to complete from start to finish?',
+			'What outcome is this code designed to produce?'
+		],
+		recentQuestions
+	);
+}
+
+function isRepeatedQuestion(candidate: string, recentQuestions: string[]): boolean {
+	const normalizedCandidate = normalizeQuestionForComparison(candidate);
+	if (!normalizedCandidate) {
+		return false;
+	}
+
+	for (const question of recentQuestions) {
+		if (normalizeQuestionForComparison(question) === normalizedCandidate) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function normalizeQuestionForComparison(question: string): string {
+	return question
+		.toLowerCase()
+		.replace(/[^a-z0-9\s]/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+function pickNonRepeatedQuestion(candidates: string[], recentQuestions: string[]): string {
+	for (const candidate of candidates) {
+		if (!isRepeatedQuestion(candidate, recentQuestions)) {
+			return candidate;
+		}
+	}
+
+	return candidates[0]!;
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {

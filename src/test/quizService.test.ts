@@ -51,6 +51,20 @@ suite('Quiz Service', () => {
 		assert.strictEqual(calls.length, 2);
 	});
 
+	test('generateQuizQuestion avoids repeating recent questions', async () => {
+		const repeated = 'What condition decides which branch of logic runs in this code?';
+		const fakeCaller = async (): Promise<string> => repeated;
+
+		const question = await generateQuizQuestion(
+			'if (isReady) { runTask(); } else { scheduleRetry(); }',
+			fakeCaller,
+			[repeated]
+		);
+
+		assert.notStrictEqual(question, repeated);
+		assert.ok(question.endsWith('?'));
+	});
+
 	test('evaluateAnswer retries once for malformed output', async () => {
 		const calls: string[] = [];
 		const fakeCaller = async (prompt: string): Promise<string> => {
