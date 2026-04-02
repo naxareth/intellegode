@@ -72,6 +72,22 @@ suite('Quiz Service', () => {
 		assert.ok(question.endsWith('?'));
 	});
 
+	test('generateQuizQuestion fallback asks concrete API behavior questions', async () => {
+		const fakeCaller = async (): Promise<string> => 'How does this code work?';
+		const snippet = [
+			"const options = {",
+			"  params: { query: `${skill} in ${location}` },",
+			"  headers: { 'X-RapidAPI-Key': process.env.RAPIDAPI_KEY }",
+			"};",
+			'const response = await axios.request(options);',
+			'return response.data.data || [];'
+		].join('\n');
+
+		const question = await generateQuizQuestion(snippet, snippet, fakeCaller);
+		assert.ok(/query|request|response|fallback|api/i.test(question));
+		assert.strictEqual(/separate request construction from response normalization/i.test(question), false);
+	});
+
 	test('evaluateAnswer retries once for malformed output', async () => {
 		const calls: string[] = [];
 		const fakeCaller = async (prompt: string): Promise<string> => {
@@ -119,8 +135,28 @@ suite('Quiz Service', () => {
 			'qwen3.5:4b',
 			fakeCaller
 		);
-		assert.ok(result.includes('updates an existing stored value'));
+		assert.ok(result.includes('writes updated data'));
 		assert.ok(result.includes('outdated information'));
+	});
+
+	test('evaluateAnswer API fallback explains normalization and stable return shape', async () => {
+		const fakeCaller = async (): Promise<string> => 'Nope.';
+		const code = [
+			'const response = await axios.request(options);',
+			'return response.data.data || [];',
+			'} catch (error) {',
+			'  return [];',
+			'}'
+		].join('\n');
+		const result = await evaluateAnswer(
+			code,
+			'Why does this function return response.data.data || []?',
+			'i am not sure',
+			'qwen3.5:4b',
+			fakeCaller
+		);
+		assert.ok(result.includes('empty array'));
+		assert.ok(result.includes('predictable'));
 	});
 
 	test('evaluateAnswer prefers valid repaired output over template fallback', async () => {

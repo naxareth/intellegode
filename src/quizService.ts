@@ -44,7 +44,11 @@ export async function generateQuizQuestion(
 			QUESTION_HINT_NUM_CTX
 		);
 		const normalizedFirst = normalizeQuizQuestionOutput(first);
-		if (normalizedFirst && !isRepeatedQuestion(normalizedFirst, seenQuestions)) {
+		if (
+			normalizedFirst &&
+			!isRepeatedQuestion(normalizedFirst, seenQuestions) &&
+			isQuestionGroundedInSnippet(normalizedFirst, selectedSnippetContext)
+		) {
 			return normalizedFirst;
 		}
 
@@ -60,7 +64,11 @@ export async function generateQuizQuestion(
 			QUESTION_HINT_NUM_CTX
 		);
 		const normalizedRepaired = normalizeQuizQuestionOutput(repaired);
-		if (normalizedRepaired && !isRepeatedQuestion(normalizedRepaired, seenQuestions)) {
+		if (
+			normalizedRepaired &&
+			!isRepeatedQuestion(normalizedRepaired, seenQuestions) &&
+			isQuestionGroundedInSnippet(normalizedRepaired, selectedSnippetContext)
+		) {
 			return normalizedRepaired;
 		}
 
@@ -84,6 +92,7 @@ export function normalizeQuizQuestionOutput(raw: string): string | null {
 	const deLabeled = flattened
 		.replace(/^\s*(question|comprehension check|quiz question)\s*[:\-]\s*/i, '')
 		.replace(/^\s*(sure|certainly|here(?:\s+is|\s*'s)|below)\b[^.?!]*[.?!]\s*/i, '')
+		.replace(/^\s*(below\s+is\s+the\s+complete\s+function\s*:\s*)/i, '')
 		.replace(/^\s*(based on the(?:.*?)provided|looking at the(?:.*?))[:,]?\s*/i, '')
 		.trim();
 
@@ -92,7 +101,7 @@ export function normalizeQuizQuestionOutput(raw: string): string | null {
 	}
 
 	const starterMatches = Array.from(
-		deLabeled.matchAll(/\b(what|why|how|which|when|where|who|does|can|is|are|if)\b[^?]{4,300}\?/ig)
+		deLabeled.matchAll(/\b(what|why|how|which|when|where|who|does|can|if)\b[^?]{4,300}\?/ig)
 	);
 	
 	// Start looking from the end because LLMs tend to put the best question at the end of their text
@@ -141,6 +150,55 @@ function isValidQuestion(text: string): boolean {
 
 function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]): string {
 	const codeLower = selectedCode.toLowerCase();
+	const hasApiCall = /\baxios\.[a-z]+\s*\(|\bfetch\s*\(/i.test(selectedCode);
+	const hasRequestOptions = /\b(headers|params|method|url)\b/i.test(selectedCode);
+	const hasResponseMapping = /response\.[a-z0-9_.]+\s*\|\|\s*\[\]/i.test(selectedCode) || /response\.[a-z0-9_.]+/i.test(selectedCode);
+	const hasTemplateQuery = /query\s*:\s*`[^`]*\$\{[^}]+\}[^`]*`/i.test(selectedCode);
+	const hasApiHeaders = /x-rapidapi-key|authorization|api[-_]key|x-api-key/i.test(selectedCode);
+	const hasCatchFallbackArray = /catch\s*\([^)]*\)[\s\S]{0,240}?return\s*\[\s*\]/i.test(selectedCode);
+
+	if (hasApiCall && hasRequestOptions) {
+		const apiCandidates: string[] = [];
+
+		if (hasTemplateQuery) {
+			apiCandidates.push('How does interpolating the query from function inputs influence what the external API actually searches for?');
+		}
+
+		if (hasResponseMapping) {
+			apiCandidates.push('Why does the success path extract nested response data with a fallback default before returning it?');
+		}
+
+		if (hasCatchFallbackArray) {
+			apiCandidates.push('How does returning an empty list in the catch path keep callers stable when the API request fails?');
+		}
+
+		if (hasApiHeaders) {
+			apiCandidates.push('Why are explicit API headers included in the request options instead of relying on defaults?');
+		}
+
+		apiCandidates.push(
+			'How are request options assembled from inputs before the outbound API call is executed?',
+			'What would break for callers if this function returned raw API output without normalization?'
+		);
+
+		return pickNonRepeatedQuestion(
+			apiCandidates,
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	if (hasResponseMapping) {
+		return pickNonRepeatedQuestion(
+			[
+				'Why does this code normalize the API response to a safe default value before returning it?',
+				'What problem does the fallback default prevent when extracting nested response data?',
+				'How does this return mapping protect callers from incomplete API payloads?'
+			],
+			recentQuestions,
+			selectedCode
+		);
+	}
 
 	// Detect specific patterns in order of specificity (core logic > structural wrappers)
 	
@@ -183,9 +241,9 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 	if (codeLower.includes('try {') || codeLower.includes('catch')) {
 		return pickNonRepeatedQuestion(
 			[
-				'What specific failure could trigger the error-handling path in this code?',
-				'How does the recovery behavior differ from the normal success path here?',
-				'Why is it important to catch errors at this point rather than letting them propagate?'
+				'What exact operation is protected by this try/catch block, and what failure mode is it defending against?',
+				'How does the catch path preserve function stability for callers when the primary operation fails?',
+				'What trade-off does this error fallback introduce compared with letting the error propagate?'
 			],
 			recentQuestions,
 			selectedCode
@@ -318,7 +376,7 @@ export async function generateHint(code: string, question: string, ollamaCaller:
 		return normalizedRepaired;
 	}
 
-	return buildFallbackHint(question);
+	return buildFallbackHint(code, question);
 }
 
 export async function evaluateAnswer(
@@ -430,13 +488,88 @@ export function isValidExplanationOutput(text: string): boolean {
 		return false;
 	}
 
+	if (normalized.split(/\s+/).length < MIN_EXPLANATION_WORDS) {
+		return false;
+	}
+
+	if (isLikelyGenericExplanation(normalized)) {
+		return false;
+	}
+
 	return true;
 }
 
 export function isContextuallyRelevant(feedback: string, question: string, codeContext: string = ''): boolean {
-	// Trust the LLM's output. The overlap scanner was previously discarding completely valid AI explanations
-	// simply because the AI used different terminology than the code string.
-	return true;
+	const feedbackTerms = extractKeyTerms(feedback);
+	const contextTerms = mergeContextTerms(question, codeContext);
+
+	if (feedbackTerms.size === 0 || contextTerms.size === 0) {
+		return !isLikelyGenericExplanation(feedback);
+	}
+
+	for (const term of feedbackTerms) {
+		if (contextTerms.has(term)) {
+			return true;
+		}
+	}
+
+	if (hasStemOverlap(feedbackTerms, contextTerms)) {
+		return true;
+	}
+
+	return false;
+}
+
+function isQuestionGroundedInSnippet(question: string, selectedCode: string): boolean {
+	if (isLikelyGenericQuestion(question)) {
+		return false;
+	}
+
+	const questionTerms = extractKeyTerms(question);
+	const codeTerms = extractKeyTerms(selectedCode);
+
+	if (questionTerms.size === 0 || codeTerms.size === 0) {
+		return true;
+	}
+
+	for (const term of questionTerms) {
+		if (codeTerms.has(term)) {
+			return true;
+		}
+	}
+
+	return hasStemOverlap(questionTerms, codeTerms);
+}
+
+function isLikelyGenericQuestion(question: string): boolean {
+	const lowered = question.toLowerCase().trim();
+	const genericPatterns = [
+		/^what is the purpose of/i,
+		/^what does this code do/i,
+		/^what does this block do/i,
+		/^how does this code work/i,
+		/^what core purpose/i,
+		/^how does the recovery behavior differ/i,
+		/^why is it important to catch errors/i,
+		/^what condition decides which branch/i
+	];
+
+	for (const pattern of genericPatterns) {
+		if (pattern.test(lowered)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function isLikelyGenericExplanation(explanation: string): boolean {
+	const lowered = explanation.toLowerCase();
+	return (
+		lowered.includes('sequence of checks and operations') ||
+		lowered.includes('transforms input into a reliable result') ||
+		lowered.includes('depends on it being in the expected format')
+	);
 }
 
 function mergeContextTerms(question: string, codeContext: string): Set<string> {
@@ -537,6 +670,35 @@ function buildGroundedFallbackExplanation(code: string, question: string): strin
 	const codeLower = code.toLowerCase();
 	const questionLower = question.toLowerCase();
 
+	if (/\baxios\.[a-z]+\s*\(|\bfetch\s*\(/i.test(code)) {
+		const hasQueryTemplate = /query\s*:\s*`[^`]*\$\{[^}]+\}[^`]*`/i.test(code);
+		const hasResponseDefault = /response\.[a-z0-9_.]+\s*\|\|\s*\[\]/i.test(code);
+		const hasCatchArrayReturn = /catch\s*\([^)]*\)[\s\S]{0,240}?return\s*\[\s*\]/i.test(code);
+
+		if (questionLower.includes('query') || questionLower.includes('param')) {
+			if (hasQueryTemplate) {
+				return 'The function builds the request query by combining runtime inputs into a single search string before sending the API call. That input interpolation directly determines what records the remote job API returns for the requested skill and location.';
+			}
+			return 'The function transforms caller inputs into request parameters before executing the API call. That parameter shaping controls what data the external service searches and returns.';
+		}
+
+		if (questionLower.includes('response') || questionLower.includes('fallback') || questionLower.includes('default')) {
+			if (hasResponseDefault) {
+				return 'The success path extracts nested response data and falls back to an empty array when that path is missing. This normalization guarantees callers receive a predictable list shape instead of undefined data.';
+			}
+			return 'The function normalizes API output to a stable return shape before exposing it. This protects callers from brittle assumptions about response structure.';
+		}
+
+		if (questionLower.includes('error') || questionLower.includes('catch') || questionLower.includes('failure') || questionLower.includes('recovery')) {
+			if (hasCatchArrayReturn) {
+				return 'The API call is wrapped in try/catch so request failures are contained instead of crashing upstream logic. In the catch path, the function logs the error and returns an empty list, preserving a consistent return contract for callers.';
+			}
+			return 'The code handles API request failures explicitly so errors do not crash the calling flow. It returns a stable fallback value so downstream logic can continue safely.';
+		}
+
+		return 'The function constructs request options, executes an outbound API call, and normalizes the response before returning it. It also handles failures with a safe fallback so callers consistently receive usable data.';
+	}
+
 	// Detect concrete patterns in the code and build specific fallbacks
 	const patterns: string[] = [];
 
@@ -625,8 +787,24 @@ function buildGroundedFallbackExplanation(code: string, question: string): strin
 	return 'The code transforms its input through a specific sequence of operations, where each step refines or validates the data before the next step uses it. The final output reflects the combined effect of all those transformations.';
 }
 
-function buildFallbackHint(question: string): string {
+function buildFallbackHint(code: string, question: string): string {
 	const lowered = question.toLowerCase();
+	if (/\baxios\.[a-z]+\s*\(|\bfetch\s*\(/i.test(code)) {
+		if (lowered.includes('error') || lowered.includes('catch') || lowered.includes('failure')) {
+			return 'Focus on what risky external operation can fail here and how the fallback return value protects callers from that failure.';
+		}
+
+		if (lowered.includes('query') || lowered.includes('param')) {
+			return 'Trace how function inputs are turned into request parameters, then connect that mapping to what the API will actually search for.';
+		}
+
+		if (lowered.includes('response') || lowered.includes('default') || lowered.includes('fallback')) {
+			return 'Look at the exact return expression and ask what shape callers always receive when the API payload is missing expected nested fields.';
+		}
+
+		return 'Track the lifecycle from request construction to response extraction, and notice why the code normalizes the returned payload before exposing it.';
+	}
+
 	if (/\b(update|field|column|record|row|table|database)\b/.test(lowered)) {
 		return 'Think about why the code must write a new value before later steps can safely trust and use that data.';
 	}
