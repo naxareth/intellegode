@@ -152,12 +152,31 @@ function isValidQuestion(text: string): boolean {
 
 function buildFallbackQuestion(selectedCode: string, recentQuestions: string[], focusMode: QuestionFocusMode): string {
 	const codeLower = selectedCode.toLowerCase();
+	const hasTieredRecommendation = /tier\s*1|tier\s*2|tier1|tier2/i.test(selectedCode);
+	const hasScoringEngine = /scorecourse|relevancescore|reasontype|bestscore/i.test(selectedCode);
+	const hasDomainOverlap = /hasoverlap|normalize\(|domain.*tag|domaincourseskills/i.test(selectedCode);
+	const hasSupabaseFlow = /getsupabaseclient|supabase\.|\.from\('/i.test(selectedCode);
 	const hasApiCall = /\baxios\.[a-z]+\s*\(|\bfetch\s*\(/i.test(selectedCode);
 	const hasRequestOptions = /\b(headers|params|method|url)\b/i.test(selectedCode);
 	const hasResponseMapping = /response\.[a-z0-9_.]+\s*\|\|\s*\[\]/i.test(selectedCode) || /response\.[a-z0-9_.]+/i.test(selectedCode);
 	const hasTemplateQuery = /query\s*:\s*`[^`]*\$\{[^}]+\}[^`]*`/i.test(selectedCode);
 	const hasApiHeaders = /x-rapidapi-key|authorization|api[-_]key|x-api-key/i.test(selectedCode);
 	const hasCatchFallbackArray = /catch\s*\([^)]*\)[\s\S]{0,240}?return\s*\[\s*\]/i.test(selectedCode);
+
+	if (hasTieredRecommendation || hasScoringEngine || hasDomainOverlap || hasSupabaseFlow) {
+		const recommendationCandidates = buildRecommendationCandidates(focusMode, {
+			hasTieredRecommendation,
+			hasScoringEngine,
+			hasDomainOverlap,
+			hasSupabaseFlow
+		});
+
+		return pickNonRepeatedQuestion(
+			recommendationCandidates,
+			recentQuestions,
+			selectedCode
+		);
+	}
 
 	if (hasApiCall && hasRequestOptions) {
 		const apiCandidates = buildApiCandidates(focusMode, {
@@ -311,6 +330,58 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[], 
 function chooseQuestionFocusMode(recentQuestions: string[]): QuestionFocusMode {
 	const modes: QuestionFocusMode[] = ['behavior', 'mechanism', 'failure', 'tradeoff'];
 	return modes[recentQuestions.length % modes.length]!;
+}
+
+function buildRecommendationCandidates(
+	focusMode: QuestionFocusMode,
+	flags: {
+		hasTieredRecommendation: boolean;
+		hasScoringEngine: boolean;
+		hasDomainOverlap: boolean;
+		hasSupabaseFlow: boolean;
+	}
+): string[] {
+	const candidates: string[] = [];
+
+	if (focusMode === 'behavior') {
+		if (flags.hasTieredRecommendation) {
+			candidates.push('How does the Tier 1 versus Tier 2 flow change which courses are shown when domain-matched results are insufficient?');
+		}
+		if (flags.hasScoringEngine) {
+			candidates.push('How does the scoring engine decide which recommendation reason type wins when multiple signals match the same course?');
+		}
+		if (flags.hasDomainOverlap) {
+			candidates.push('Why does the domain-overlap filter run before scoring, and how does that affect recommendation relevance?');
+		}
+	}
+
+	if (focusMode === 'mechanism') {
+		candidates.push(
+			'How does the code normalize skill tags before overlap checks, and why is that normalization necessary for reliable matching?',
+			'How does the flow move from Supabase fetches to tier filtering to final score sorting in recommendCourses?'
+		);
+	}
+
+	if (focusMode === 'failure') {
+		candidates.push(
+			'What happens to recommendation quality when market snapshot data is missing or stale, and how does the code degrade safely?',
+			'Which failure path still returns usable recommendations, and which path exits early with an empty result?'
+		);
+	}
+
+	if (focusMode === 'tradeoff') {
+		candidates.push(
+			'What trade-off does this two-tier design make between staying domain-relevant and exploring high-demand skills outside the student field?',
+			'What ambiguity is introduced by assigning a fixed explore score, and how could you make that scoring more adaptive?'
+		);
+	}
+
+	if (flags.hasSupabaseFlow) {
+		candidates.push('Why is the Supabase client created lazily inside a function instead of at module load time?');
+	}
+
+	candidates.push('How does this recommendation pipeline prevent high-demand but irrelevant skills from dominating results?');
+	return candidates;
 }
 
 function buildApiCandidates(
@@ -589,6 +660,13 @@ function isQuestionGroundedInSnippet(question: string, selectedCode: string): bo
 		return false;
 	}
 
+	if (
+		/(each iteration|pass through this loop|loop in this code|collection at once)/i.test(question) &&
+		/scorecourse|relevancescore|tier1|tier2|hasoverlap|supabase|domaincourseskills/i.test(selectedCode)
+	) {
+		return false;
+	}
+
 	const questionTerms = extractKeyTerms(question);
 	const codeTerms = extractKeyTerms(selectedCode);
 
@@ -734,6 +812,26 @@ function buildGroundedFallbackExplanation(code: string, question: string): strin
 	const codeLower = code.toLowerCase();
 	const questionLower = question.toLowerCase();
 
+	if (/tier\s*1|tier\s*2|tier1|tier2|scorecourse|relevancescore|reasontype|hasoverlap|domaincourseskills/i.test(code)) {
+		if (questionLower.includes('tier')) {
+			return 'The recommender first prioritizes domain-matched Tier 1 courses and only fills remaining slots with Tier 2 explore courses when Tier 1 coverage is insufficient. This keeps recommendations relevant while still preventing empty output for students with sparse domain matches.';
+		}
+
+		if (questionLower.includes('score') || questionLower.includes('reason type') || questionLower.includes('signal')) {
+			return 'The scoring engine evaluates multiple signals (decay, gap, growth, complement) and keeps the strongest matching reason as the final explanation for each course. After scoring, recommendations are sorted by reason-type priority and score so high-impact matches appear first.';
+		}
+
+		if (questionLower.includes('overlap') || questionLower.includes('normalize') || questionLower.includes('domain')) {
+			return 'The code normalizes tags before overlap checks so semantically equal values with different casing or spacing still match. That overlap filter constrains recommendations to domain-relevant skills before later scoring logic runs.';
+		}
+
+		if (questionLower.includes('trade') || questionLower.includes('explore')) {
+			return 'The two-tier strategy trades strict domain relevance for coverage: Tier 1 stays field-aligned, while Tier 2 explores high-demand skills when domain matches are scarce. This avoids empty recommendations but can surface less directly relevant options.';
+		}
+
+		return 'The recommendation flow combines domain filtering, market-gap analysis, and signal-based scoring to rank courses by likely student impact. It then applies tier-aware fallback so the output remains useful even when domain-matched data is sparse.';
+	}
+
 	if (/\baxios\.[a-z]+\s*\(|\bfetch\s*\(/i.test(code)) {
 		const hasQueryTemplate = /query\s*:\s*`[^`]*\$\{[^}]+\}[^`]*`/i.test(code);
 		const hasResponseDefault = /response\.[a-z0-9_.]+\s*\|\|\s*\[\]/i.test(code);
@@ -853,6 +951,22 @@ function buildGroundedFallbackExplanation(code: string, question: string): strin
 
 function buildFallbackHint(code: string, question: string): string {
 	const lowered = question.toLowerCase();
+	if (/tier\s*1|tier\s*2|tier1|tier2|scorecourse|relevancescore|reasontype|hasoverlap|domaincourseskills/i.test(code)) {
+		if (lowered.includes('tier') || lowered.includes('explore')) {
+			return 'Track where Tier 1 stops, where Tier 2 begins, and what condition decides when fallback exploration is allowed.';
+		}
+
+		if (lowered.includes('score') || lowered.includes('reason')) {
+			return 'Follow which signal updates the best score, and notice how that winning signal controls both ranking and explanation type.';
+		}
+
+		if (lowered.includes('overlap') || lowered.includes('normalize') || lowered.includes('domain')) {
+			return 'Focus on why normalization happens before overlap checks and how that changes which records qualify for later scoring.';
+		}
+
+		return 'Map the pipeline stages in order: data fetch, domain filter, scoring, then tier-based fallback fill.';
+	}
+
 	if (/\baxios\.[a-z]+\s*\(|\bfetch\s*\(/i.test(code)) {
 		if (lowered.includes('error') || lowered.includes('catch') || lowered.includes('failure')) {
 			return 'Focus on what risky external operation can fail here and how the fallback return value protects callers from that failure.';

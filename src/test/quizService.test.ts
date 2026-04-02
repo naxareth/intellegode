@@ -103,6 +103,24 @@ suite('Quiz Service', () => {
 		assert.ok(/ambiguity|stable return type|failed/i.test(question));
 	});
 
+	test('generateQuizQuestion fallback for recommendation engine avoids generic loop prompts', async () => {
+		const fakeCaller = async (): Promise<string> => 'How does this code work?';
+		const snippet = [
+			'function scoreCourse(courseTags: string[]) {',
+			'  let bestScore = 0;',
+			'  if (decayingMatches.length > 0) bestScore = 90;',
+			'  if (gapMatches.length > 0) bestScore = 80;',
+			'  return bestScore;',
+			'}',
+			'let tier1Recommendations: CourseRecommendation[] = [];',
+			'if (tier1Recommendations.length >= topN) return tier1Recommendations.slice(0, topN);'
+		].join('\n');
+
+		const question = await generateQuizQuestion(snippet, snippet, fakeCaller);
+		assert.ok(/tier|score|reason|domain|fallback|signal|supabase|normalize|overlap|pipeline/i.test(question));
+		assert.strictEqual(/each iteration|loop in this code/i.test(question), false);
+	});
+
 	test('evaluateAnswer retries once for malformed output', async () => {
 		const calls: string[] = [];
 		const fakeCaller = async (prompt: string): Promise<string> => {
