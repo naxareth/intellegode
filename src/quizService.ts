@@ -3,37 +3,54 @@ import {
 	buildEvaluatePrompt,
 	buildEvaluationRepairPrompt,
 	buildHintPrompt,
+	QuestionFocusMode,
 	buildQuizQuestionRepairPrompt,
 	buildQuizQuestionPrompt
 } from './prompts';
 
-export type OllamaCaller = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number) => Promise<string>;
-export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number) => Promise<string>;
+export type OllamaCaller = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number, numCtx?: number) => Promise<string>;
+export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number, numCtx?: number) => Promise<string>;
 
 const QUIZ_QUESTION_TIMEOUT_MS = 60000;
 const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 18000;
 const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 22000;
+const QUIZ_MODEL = 'qwen3.5:4b';
 const MIN_EXPLANATION_WORDS = 10;
 const MIN_HINT_WORDS = 8;
 const MAX_HINT_WORDS = 50;
-const MAX_QUESTION_ATTEMPTS = 3;
+const MAX_QUESTION_ATTEMPTS = 2;
 const QUESTION_HISTORY_WINDOW = 8;
-const MAX_QUESTION_CODE_CHARS = 1800;
+const MAX_SELECTED_SNIPPET_CHARS = 2400;
+const MAX_FILE_CONTEXT_CHARS = 3600;
+const QUESTION_HINT_NUM_CTX = 2048;
 
 
 export async function generateQuizQuestion(
 	selectedCode: string,
+	fileCodeContext: string,
 	ollamaCaller: OllamaCaller = callOllama,
 	recentQuestions: string[] = []
 ): Promise<string> {
-	const questionCodeContext = prepareQuestionCodeContext(selectedCode);
+	const selectedSnippetContext = prepareContext(selectedCode, MAX_SELECTED_SNIPPET_CHARS);
+	const fileContext = prepareContext(fileCodeContext || selectedCode, MAX_FILE_CONTEXT_CHARS);
 	const seenQuestions = recentQuestions.slice(-QUESTION_HISTORY_WINDOW);
+	const focusMode = chooseQuestionFocusMode(seenQuestions);
 
 	for (let attempt = 0; attempt < MAX_QUESTION_ATTEMPTS; attempt += 1) {
 		// First request can include model cold-start, so keep this timeout more forgiving.
-		const first = await ollamaCaller(buildQuizQuestionPrompt(questionCodeContext, seenQuestions), undefined, 60, QUIZ_QUESTION_TIMEOUT_MS);
+		const first = await ollamaCaller(
+			buildQuizQuestionPrompt(selectedSnippetContext, fileContext, seenQuestions, focusMode),
+			QUIZ_MODEL,
+			60,
+			QUIZ_QUESTION_TIMEOUT_MS,
+			QUESTION_HINT_NUM_CTX
+		);
 		const normalizedFirst = normalizeQuizQuestionOutput(first);
-		if (normalizedFirst && !isRepeatedQuestion(normalizedFirst, seenQuestions)) {
+		if (
+			normalizedFirst &&
+			!isRepeatedQuestion(normalizedFirst, seenQuestions) &&
+			isQuestionGroundedInSnippet(normalizedFirst, selectedSnippetContext)
+		) {
 			return normalizedFirst;
 		}
 
@@ -42,13 +59,18 @@ export async function generateQuizQuestion(
 		}
 
 		const repaired = await ollamaCaller(
-			buildQuizQuestionRepairPrompt(first, questionCodeContext, seenQuestions),
-			undefined,
+			buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, seenQuestions, focusMode),
+			QUIZ_MODEL,
 			80,
-			QUIZ_QUESTION_TIMEOUT_MS
+			QUIZ_QUESTION_TIMEOUT_MS,
+			QUESTION_HINT_NUM_CTX
 		);
 		const normalizedRepaired = normalizeQuizQuestionOutput(repaired);
-		if (normalizedRepaired && !isRepeatedQuestion(normalizedRepaired, seenQuestions)) {
+		if (
+			normalizedRepaired &&
+			!isRepeatedQuestion(normalizedRepaired, seenQuestions) &&
+			isQuestionGroundedInSnippet(normalizedRepaired, selectedSnippetContext)
+		) {
 			return normalizedRepaired;
 		}
 
@@ -57,24 +79,23 @@ export async function generateQuizQuestion(
 		}
 	}
 
-	return buildFallbackQuestion(questionCodeContext, seenQuestions);
+	return buildFallbackQuestion(selectedSnippetContext, seenQuestions, focusMode);
 }
 
 export function normalizeQuizQuestionOutput(raw: string): string | null {
-	const flattened = raw.replace(/\r?\n+/g, ' ').trim();
+	// Remove giant code blocks, but KEEP small inline markdown formatting
+	const withoutLargeCodeFences = raw.replace(/```[\s\S]*?```/g, ' ').trim();
+
+	const flattened = withoutLargeCodeFences.replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim();
 	if (!flattened) {
 		return null;
 	}
 
-	const withoutCodeFences = flattened
-		.replace(/```[\s\S]*?```/g, ' ')
-		.replace(/`[^`]*`/g, ' ')
-		.replace(/\s+/g, ' ')
-		.trim();
-
-	const deLabeled = withoutCodeFences
+	const deLabeled = flattened
 		.replace(/^\s*(question|comprehension check|quiz question)\s*[:\-]\s*/i, '')
 		.replace(/^\s*(sure|certainly|here(?:\s+is|\s*'s)|below)\b[^.?!]*[.?!]\s*/i, '')
+		.replace(/^\s*(below\s+is\s+the\s+complete\s+function\s*:\s*)/i, '')
+		.replace(/^\s*(based on the(?:.*?)provided|looking at the(?:.*?))[:,]?\s*/i, '')
 		.trim();
 
 	if (!deLabeled) {
@@ -82,8 +103,10 @@ export function normalizeQuizQuestionOutput(raw: string): string | null {
 	}
 
 	const starterMatches = Array.from(
-		deLabeled.matchAll(/\b(what|why|how|which|when|where|who|does)\b[^?]{4,200}\?/ig)
+		deLabeled.matchAll(/\b(what|why|how|which|when|where|who|does|can|if)\b[^?]{4,300}\?/ig)
 	);
+	
+	// Start looking from the end because LLMs tend to put the best question at the end of their text
 	for (let i = starterMatches.length - 1; i >= 0; i -= 1) {
 		const starterCandidate = starterMatches[i][0].replace(/\s+/g, ' ').trim();
 		if (isValidQuestion(starterCandidate)) {
@@ -91,24 +114,24 @@ export function normalizeQuizQuestionOutput(raw: string): string | null {
 		}
 	}
 
-	const candidateMatches = deLabeled.match(/[A-Z][^?]{8,220}\?/g) ?? [];
+	const candidateMatches = deLabeled.match(/[A-Z][^?]{8,300}\?/g) ?? [];
 	for (const rawCandidate of candidateMatches) {
-		const candidate = rawCandidate.replace(/^[^A-Za-z]+/, '').replace(/\s+/g, ' ').trim();
+		const candidate = rawCandidate.replace(/^[^A-Z]+/, '').trim();
 		if (isValidQuestion(candidate)) {
 			return candidate;
 		}
 	}
 
-	const fallbackCandidate = deLabeled.replace(/\s+/g, ' ').trim();
-	if (!isValidQuestion(fallbackCandidate)) {
+	if (!isValidQuestion(deLabeled)) {
 		return null;
 	}
 
-	return fallbackCandidate;
+	return deLabeled;
 }
 
 function isValidQuestion(text: string): boolean {
-	if (text.length < 10 || text.length > 220) {
+	// Relaxed character limits to handle complex TS questions naturally generated by Ollama
+	if (text.length < 10 || text.length > 300) {
 		return false;
 	}
 
@@ -116,49 +139,177 @@ function isValidQuestion(text: string): boolean {
 		return false;
 	}
 
-	if (/\b(import|function|class|return\s+|const\s+|let\s+|var\s+)\b/i.test(text)) {
-		return false;
-	}
-
-	if (/^\s*["'`]/.test(text)) {
+	// The old regex strictly dumped any string containing 'function', 'return', 'class', 'import'
+	// This was highly destructive because normal coding questions naturally mention these words!
+	// Example valid question failed: "What does this function return?"
+	// Instead, only fail if the response is blatantly a pure multi-line code snippet.
+	if (/^import\s+.*from/im.test(text) || /^export\s+(const|function|class)/im.test(text)) {
 		return false;
 	}
 
 	return true;
 }
 
-function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]): string {
+function buildFallbackQuestion(selectedCode: string, recentQuestions: string[], focusMode: QuestionFocusMode): string {
 	const codeLower = selectedCode.toLowerCase();
-	if (codeLower.includes('if') || codeLower.includes('else')) {
+	const hasTieredRecommendation = /tier\s*1|tier\s*2|tier1|tier2/i.test(selectedCode);
+	const hasScoringEngine = /scorecourse|relevancescore|reasontype|bestscore/i.test(selectedCode);
+	const hasDomainOverlap = /hasoverlap|normalize\(|domain.*tag|domaincourseskills/i.test(selectedCode);
+	const hasSupabaseFlow = /getsupabaseclient|supabase\.|\.from\('/i.test(selectedCode);
+	const hasApiCall = /\baxios\.[a-z]+\s*\(|\bfetch\s*\(/i.test(selectedCode);
+	const hasRequestOptions = /\b(headers|params|method|url)\b/i.test(selectedCode);
+	const hasResponseMapping = /response\.[a-z0-9_.]+\s*\|\|\s*\[\]/i.test(selectedCode) || /response\.[a-z0-9_.]+/i.test(selectedCode);
+	const hasTemplateQuery = /query\s*:\s*`[^`]*\$\{[^}]+\}[^`]*`/i.test(selectedCode);
+	const hasApiHeaders = /x-rapidapi-key|authorization|api[-_]key|x-api-key/i.test(selectedCode);
+	const hasCatchFallbackArray = /catch\s*\([^)]*\)[\s\S]{0,240}?return\s*\[\s*\]/i.test(selectedCode);
+
+	if (hasTieredRecommendation || hasScoringEngine || hasDomainOverlap || hasSupabaseFlow) {
+		const recommendationCandidates = buildRecommendationCandidates(focusMode, {
+			hasTieredRecommendation,
+			hasScoringEngine,
+			hasDomainOverlap,
+			hasSupabaseFlow
+		});
+
+		return pickNonRepeatedQuestion(
+			recommendationCandidates,
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	if (hasApiCall && hasRequestOptions) {
+		const apiCandidates = buildApiCandidates(focusMode, {
+			hasTemplateQuery,
+			hasResponseMapping,
+			hasCatchFallbackArray,
+			hasApiHeaders
+		});
+
+		return pickNonRepeatedQuestion(
+			apiCandidates,
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	if (hasResponseMapping) {
+		const mappingCandidates = focusMode === 'tradeoff'
+			? [
+				'What ambiguity does returning [] for both "no data" and "request failure" create for upstream callers?',
+				'How could this function keep a stable return type while still exposing whether the API request actually failed?',
+				'What trade-off does this fallback design make between simplicity and observability?'
+			]
+			: [
+				'Why does this code normalize the API response to a safe default value before returning it?',
+				'What problem does the fallback default prevent when extracting nested response data?',
+				'How does this return mapping protect callers from incomplete API payloads?'
+			];
+		return pickNonRepeatedQuestion(
+			mappingCandidates,
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	// Detect specific patterns in order of specificity (core logic > structural wrappers)
+	
+	if (/math\.(max|min|log|log2|floor|ceil|round|abs|pow|sqrt)/i.test(selectedCode)) {
 		return pickNonRepeatedQuestion(
 			[
-				'Why does this decision check need to happen before the rest of the logic continues?',
-				'How does this conditional guard change what work the code performs next?',
-				'What behavior differs when the decision check evaluates true versus false?'
+				'Why does this code apply a mathematical transformation instead of using the raw value directly?',
+				'How does the math operation here change the scale or range of the input value?',
+				'What would go wrong if this calculation were skipped and the untransformed value were used instead?'
 			],
 			recentQuestions,
 			selectedCode
 		);
 	}
 
-	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(')) {
+	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(') || codeLower.includes('.filter(') || codeLower.includes('.reduce(')) {
 		return pickNonRepeatedQuestion(
 			[
-				'What repeated step in this loop drives the final result?',
-				'How does each iteration move the program closer to its outcome?',
-				'What is the key transformation that happens on every pass through this loop?'
+				'What transformation does each iteration apply, and how do those steps combine into the final result?',
+				'Why does this code process items one by one in a loop instead of handling the entire collection at once?',
+				'What accumulates or changes on every pass through this loop to produce the end result?'
 			],
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	if (codeLower.includes('if') || codeLower.includes('else')) {
+		const conditionalCandidates = focusMode === 'tradeoff'
+			? [
+				'What incorrect behavior could happen if this conditional guard were removed?',
+				'What trade-off does this branch introduce between strict validation and permissive flow?',
+				'How would downstream logic change if both branch paths were allowed to run?'
+			]
+			: [
+				'What specific condition determines which execution path the code takes here?',
+				'What different outcomes result from the conditional check passing versus failing?',
+				'Why does this decision check need to happen before the rest of the logic can proceed?'
+			];
+		return pickNonRepeatedQuestion(
+			conditionalCandidates,
 			recentQuestions,
 			selectedCode
 		);
 	}
 
 	if (codeLower.includes('try {') || codeLower.includes('catch')) {
+		const failureCandidates = focusMode === 'behavior'
+			? [
+				'What exact operation is protected by this try/catch block, and what failure mode is it defending against?',
+				'How does the catch path preserve function stability for callers when the primary operation fails?',
+				'What fallback value does this code return when the protected operation throws?'
+			]
+			: [
+				'What trade-off does this error fallback introduce compared with letting the error propagate?',
+				'What debugging signal is lost when the catch path masks upstream failures with a default value?',
+				'How might you preserve reliability while still surfacing failure details to callers?'
+			];
+		return pickNonRepeatedQuestion(
+			failureCandidates,
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	if (codeLower.includes('return ')) {
 		return pickNonRepeatedQuestion(
 			[
-				'How does this code keep execution safe when something fails?',
-				'What recovery behavior is triggered when an operation throws an error?',
-				'How does the error-handling path differ from the success path here?'
+				'What transformation does this code apply to its inputs before returning the final value?',
+				'Why is the returned value computed this way instead of being passed through unchanged?',
+				'How does the return value here get used by the code that calls this function?'
+			],
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	// Async is extremely common, so evaluate it last to prevent it from shadowing core logic
+	if (codeLower.includes('async ') || codeLower.includes('await ') || codeLower.includes('.then(')) {
+		return pickNonRepeatedQuestion(
+			[
+				'Why does this operation need to be asynchronous instead of completing immediately?',
+				'What external resource or slow process does this code wait for before continuing?',
+				'How does the async flow here prevent the program from blocking while it waits?'
+			],
+			recentQuestions,
+			selectedCode
+		);
+	}
+
+	// Extract function names to make the generic fallback more specific
+	const funcMatch = selectedCode.match(/function\s+(\w+)/i);
+	if (funcMatch) {
+		const funcName = funcMatch[1];
+		return pickNonRepeatedQuestion(
+			[
+				`What specific data transformation does ${funcName} perform on its input?`,
+				`Why is the logic in ${funcName} necessary — what would break if it were removed?`,
+				`How does ${funcName} ensure the output is valid for the code that depends on it?`
 			],
 			recentQuestions,
 			selectedCode
@@ -167,13 +318,122 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 
 	return pickNonRepeatedQuestion(
 		[
-			'What is the most important behavior this code is responsible for?',
-			'What single outcome is this code trying to guarantee?',
-			'What core purpose does this block serve in the larger flow?'
+			'What specific input does this code receive, and how does it transform that input before producing output?',
+			'What would break or behave differently if this block of code were removed entirely?',
+			'What is the one key operation this code performs that the rest of the program depends on?'
 		],
 		recentQuestions,
 		selectedCode
 	);
+}
+
+function chooseQuestionFocusMode(recentQuestions: string[]): QuestionFocusMode {
+	const modes: QuestionFocusMode[] = ['behavior', 'mechanism', 'failure', 'tradeoff'];
+	return modes[recentQuestions.length % modes.length]!;
+}
+
+function buildRecommendationCandidates(
+	focusMode: QuestionFocusMode,
+	flags: {
+		hasTieredRecommendation: boolean;
+		hasScoringEngine: boolean;
+		hasDomainOverlap: boolean;
+		hasSupabaseFlow: boolean;
+	}
+): string[] {
+	const candidates: string[] = [];
+
+	if (focusMode === 'behavior') {
+		if (flags.hasTieredRecommendation) {
+			candidates.push('How does the Tier 1 versus Tier 2 flow change which courses are shown when domain-matched results are insufficient?');
+		}
+		if (flags.hasScoringEngine) {
+			candidates.push('How does the scoring engine decide which recommendation reason type wins when multiple signals match the same course?');
+		}
+		if (flags.hasDomainOverlap) {
+			candidates.push('Why does the domain-overlap filter run before scoring, and how does that affect recommendation relevance?');
+		}
+	}
+
+	if (focusMode === 'mechanism') {
+		candidates.push(
+			'How does the code normalize skill tags before overlap checks, and why is that normalization necessary for reliable matching?',
+			'How does the flow move from Supabase fetches to tier filtering to final score sorting in recommendCourses?'
+		);
+	}
+
+	if (focusMode === 'failure') {
+		candidates.push(
+			'What happens to recommendation quality when market snapshot data is missing or stale, and how does the code degrade safely?',
+			'Which failure path still returns usable recommendations, and which path exits early with an empty result?'
+		);
+	}
+
+	if (focusMode === 'tradeoff') {
+		candidates.push(
+			'What trade-off does this two-tier design make between staying domain-relevant and exploring high-demand skills outside the student field?',
+			'What ambiguity is introduced by assigning a fixed explore score, and how could you make that scoring more adaptive?'
+		);
+	}
+
+	if (flags.hasSupabaseFlow) {
+		candidates.push('Why is the Supabase client created lazily inside a function instead of at module load time?');
+	}
+
+	candidates.push('How does this recommendation pipeline prevent high-demand but irrelevant skills from dominating results?');
+	return candidates;
+}
+
+function buildApiCandidates(
+	focusMode: QuestionFocusMode,
+	flags: {
+		hasTemplateQuery: boolean;
+		hasResponseMapping: boolean;
+		hasCatchFallbackArray: boolean;
+		hasApiHeaders: boolean;
+	}
+): string[] {
+	const candidates: string[] = [];
+
+	if (focusMode === 'behavior') {
+		if (flags.hasTemplateQuery) {
+			candidates.push('How does interpolating the query from function inputs influence what the external API actually searches for?');
+		}
+		if (flags.hasResponseMapping) {
+			candidates.push('Why does the success path extract nested response data with a fallback default before returning it?');
+		}
+		if (flags.hasCatchFallbackArray) {
+			candidates.push('How does returning an empty list in the catch path keep callers stable when the API request fails?');
+		}
+	}
+
+	if (focusMode === 'mechanism') {
+		candidates.push(
+			'How are request options assembled from inputs before the outbound API call is executed?',
+			'How does the control flow move from request construction to response extraction in the success path?'
+		);
+	}
+
+	if (focusMode === 'failure') {
+		candidates.push(
+			'What specific failure points can occur between the outbound API request and the returned list value?',
+			'How does this function ensure callers still receive a usable value when network or API failures occur?'
+		);
+	}
+
+	if (focusMode === 'tradeoff') {
+		candidates.push(
+			'What ambiguity does returning [] in both the catch path and empty-success cases create for callers?',
+			'How could this function preserve a stable return type while still exposing whether the API call failed?'
+		);
+	}
+
+	if (flags.hasApiHeaders) {
+		candidates.push('Why are explicit API headers included in the request options instead of relying on defaults?');
+	}
+
+	candidates.push('What would break for callers if this function returned raw API output without normalization?');
+	return candidates;
 }
 
 function isRepeatedQuestion(candidate: string, recentQuestions: string[]): boolean {
@@ -211,13 +471,13 @@ function pickNonRepeatedQuestion(candidates: string[], recentQuestions: string[]
 	return candidates[0]!;
 }
 
-function prepareQuestionCodeContext(selectedCode: string): string {
-	const trimmed = selectedCode.trim();
-	if (trimmed.length <= MAX_QUESTION_CODE_CHARS) {
+function prepareContext(source: string, maxChars: number): string {
+	const trimmed = source.trim();
+	if (trimmed.length <= maxChars) {
 		return trimmed;
 	}
 
-	const half = Math.floor((MAX_QUESTION_CODE_CHARS - 9) / 2);
+	const half = Math.floor((maxChars - 9) / 2);
 	const head = trimmed.slice(0, half).trimEnd();
 	const tail = trimmed.slice(-half).trimStart();
 	return `${head}\n\n...\n\n${tail}`;
@@ -233,7 +493,7 @@ function hashString(value: string): number {
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
-	const first = await ollamaCaller(buildHintPrompt(code, question), undefined, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS);
+	const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS, QUESTION_HINT_NUM_CTX);
 	const normalizedFirst = normalizeHintOutput(first);
 	if (normalizedFirst) {
 		return normalizedFirst;
@@ -241,22 +501,17 @@ export async function generateHint(code: string, question: string, ollamaCaller:
 
 	const repaired = await ollamaCaller(
 		buildHintRepairPrompt(first, question),
-		undefined,
+		QUIZ_MODEL,
 		120,
-		HINT_SECOND_ATTEMPT_TIMEOUT_MS
+		HINT_SECOND_ATTEMPT_TIMEOUT_MS,
+		QUESTION_HINT_NUM_CTX
 	);
 	const normalizedRepaired = normalizeHintOutput(repaired);
 	if (normalizedRepaired) {
 		return normalizedRepaired;
 	}
 
-	const second = await ollamaCaller(buildHintPrompt(code, question), undefined, 180, HINT_SECOND_ATTEMPT_TIMEOUT_MS);
-	const normalizedSecond = normalizeHintOutput(second);
-	if (normalizedSecond) {
-		return normalizedSecond;
-	}
-
-	return buildFallbackHint(question);
+	return buildFallbackHint(code, question);
 }
 
 export async function evaluateAnswer(
@@ -297,7 +552,7 @@ export function normalizeExplanationOutput(raw: string): string | null {
 		return null;
 	}
 
-	const sanitized = limitToSentences(stripLeadingGradeLabels(oneLine), 2);
+	const sanitized = limitToSentences(stripLeadingGradeLabels(oneLine), 3);
 	if (!sanitized) {
 		return null;
 	}
@@ -372,6 +627,10 @@ export function isValidExplanationOutput(text: string): boolean {
 		return false;
 	}
 
+	if (isLikelyGenericExplanation(normalized)) {
+		return false;
+	}
+
 	return true;
 }
 
@@ -380,7 +639,7 @@ export function isContextuallyRelevant(feedback: string, question: string, codeC
 	const contextTerms = mergeContextTerms(question, codeContext);
 
 	if (feedbackTerms.size === 0 || contextTerms.size === 0) {
-		return true;
+		return !isLikelyGenericExplanation(feedback);
 	}
 
 	for (const term of feedbackTerms) {
@@ -389,7 +648,70 @@ export function isContextuallyRelevant(feedback: string, question: string, codeC
 		}
 	}
 
-	return hasStemOverlap(feedbackTerms, contextTerms);
+	if (hasStemOverlap(feedbackTerms, contextTerms)) {
+		return true;
+	}
+
+	return false;
+}
+
+function isQuestionGroundedInSnippet(question: string, selectedCode: string): boolean {
+	if (isLikelyGenericQuestion(question)) {
+		return false;
+	}
+
+	if (
+		/(each iteration|pass through this loop|loop in this code|collection at once)/i.test(question) &&
+		/scorecourse|relevancescore|tier1|tier2|hasoverlap|supabase|domaincourseskills/i.test(selectedCode)
+	) {
+		return false;
+	}
+
+	const questionTerms = extractKeyTerms(question);
+	const codeTerms = extractKeyTerms(selectedCode);
+
+	if (questionTerms.size === 0 || codeTerms.size === 0) {
+		return true;
+	}
+
+	for (const term of questionTerms) {
+		if (codeTerms.has(term)) {
+			return true;
+		}
+	}
+
+	return hasStemOverlap(questionTerms, codeTerms);
+}
+
+function isLikelyGenericQuestion(question: string): boolean {
+	const lowered = question.toLowerCase().trim();
+	const genericPatterns = [
+		/^what is the purpose of/i,
+		/^what does this code do/i,
+		/^what does this block do/i,
+		/^how does this code work/i,
+		/^what core purpose/i,
+		/^how does the recovery behavior differ/i,
+		/^why is it important to catch errors/i,
+		/^what condition decides which branch/i
+	];
+
+	for (const pattern of genericPatterns) {
+		if (pattern.test(lowered)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function isLikelyGenericExplanation(explanation: string): boolean {
+	const lowered = explanation.toLowerCase();
+	return (
+		lowered.includes('sequence of checks and operations') ||
+		lowered.includes('transforms input into a reliable result') ||
+		lowered.includes('depends on it being in the expected format')
+	);
 }
 
 function mergeContextTerms(question: string, codeContext: string): Set<string> {
@@ -489,24 +811,178 @@ function normalizeToken(token: string): string {
 function buildGroundedFallbackExplanation(code: string, question: string): string {
 	const codeLower = code.toLowerCase();
 	const questionLower = question.toLowerCase();
-	const asksAboutUpdate = /\b(update|updat|upsert|field|column|record|row|table|database)\b/.test(questionLower);
-	if (asksAboutUpdate) {
-		return 'The code updates an existing stored value so later logic reads the latest state instead of stale data. That update keeps related operations consistent and prevents decisions from being made using outdated information.';
+
+	if (/tier\s*1|tier\s*2|tier1|tier2|scorecourse|relevancescore|reasontype|hasoverlap|domaincourseskills/i.test(code)) {
+		if (questionLower.includes('tier')) {
+			return 'The recommender first prioritizes domain-matched Tier 1 courses and only fills remaining slots with Tier 2 explore courses when Tier 1 coverage is insufficient. This keeps recommendations relevant while still preventing empty output for students with sparse domain matches.';
+		}
+
+		if (questionLower.includes('score') || questionLower.includes('reason type') || questionLower.includes('signal')) {
+			return 'The scoring engine evaluates multiple signals (decay, gap, growth, complement) and keeps the strongest matching reason as the final explanation for each course. After scoring, recommendations are sorted by reason-type priority and score so high-impact matches appear first.';
+		}
+
+		if (questionLower.includes('overlap') || questionLower.includes('normalize') || questionLower.includes('domain')) {
+			return 'The code normalizes tags before overlap checks so semantically equal values with different casing or spacing still match. That overlap filter constrains recommendations to domain-relevant skills before later scoring logic runs.';
+		}
+
+		if (questionLower.includes('trade') || questionLower.includes('explore')) {
+			return 'The two-tier strategy trades strict domain relevance for coverage: Tier 1 stays field-aligned, while Tier 2 explores high-demand skills when domain matches are scarce. This avoids empty recommendations but can surface less directly relevant options.';
+		}
+
+		return 'The recommendation flow combines domain filtering, market-gap analysis, and signal-based scoring to rank courses by likely student impact. It then applies tier-aware fallback so the output remains useful even when domain-matched data is sparse.';
 	}
 
-	if (questionLower.includes('condition') || questionLower.includes('branch') || codeLower.includes('if (') || codeLower.includes('else')) {
-		return 'The code evaluates decision checks and chooses the execution path based on which conditions are true. That branching behavior controls when each block of logic runs and prevents the wrong path from executing.';
+	if (/\baxios\.[a-z]+\s*\(|\bfetch\s*\(/i.test(code)) {
+		const hasQueryTemplate = /query\s*:\s*`[^`]*\$\{[^}]+\}[^`]*`/i.test(code);
+		const hasResponseDefault = /response\.[a-z0-9_.]+\s*\|\|\s*\[\]/i.test(code);
+		const hasCatchArrayReturn = /catch\s*\([^)]*\)[\s\S]{0,240}?return\s*\[\s*\]/i.test(code);
+
+		if (questionLower.includes('query') || questionLower.includes('param')) {
+			if (hasQueryTemplate) {
+				return 'The function builds the request query by combining runtime inputs into a single search string before sending the API call. That input interpolation directly determines what records the remote job API returns for the requested skill and location.';
+			}
+			return 'The function transforms caller inputs into request parameters before executing the API call. That parameter shaping controls what data the external service searches and returns.';
+		}
+
+		if (questionLower.includes('response') || questionLower.includes('fallback') || questionLower.includes('default')) {
+			if (hasResponseDefault) {
+				return 'The success path extracts nested response data and falls back to an empty array when that path is missing. This normalization guarantees callers receive a predictable list shape instead of undefined data.';
+			}
+			return 'The function normalizes API output to a stable return shape before exposing it. This protects callers from brittle assumptions about response structure.';
+		}
+
+		if (questionLower.includes('error') || questionLower.includes('catch') || questionLower.includes('failure') || questionLower.includes('recovery')) {
+			if (hasCatchArrayReturn) {
+				return 'The API call is wrapped in try/catch so request failures are contained instead of crashing upstream logic. In the catch path, the function logs the error and returns an empty list, preserving a consistent return contract for callers.';
+			}
+			return 'The code handles API request failures explicitly so errors do not crash the calling flow. It returns a stable fallback value so downstream logic can continue safely.';
+		}
+
+		return 'The function constructs request options, executes an outbound API call, and normalizes the response before returning it. It also handles failures with a safe fallback so callers consistently receive usable data.';
 	}
 
-	if (codeLower.includes('for (') || codeLower.includes('while (') || codeLower.includes('.map(') || codeLower.includes('.reduce(')) {
-		return 'The code repeats a core operation across a collection so each item is processed in a consistent way. The final outcome is built from the combined effect of those repeated steps.';
+	// Detect concrete patterns in the code and build specific fallbacks
+	const patterns: string[] = [];
+
+	// Look for specific named functions
+	const funcMatch = code.match(/function\s+(\w+)/i);
+	const funcName = funcMatch ? funcMatch[1] : null;
+
+	// Check for math operations
+	const mathMatch = code.match(/Math\.(max|min|log|log2|floor|ceil|round|abs|pow|sqrt)/i);
+	if (mathMatch) {
+		patterns.push(`applies Math.${mathMatch[1]} to transform or constrain a numeric value`);
 	}
 
-	return 'The code performs a sequence of checks and operations to transform input into a reliable result. The key behavior is that each step prepares the state needed for the next step to work correctly.';
+	// Check for clamping patterns (Math.max + Math.min combo)
+	if (/Math\.max/.test(code) && /Math\.min/.test(code)) {
+		patterns.push('clamps the value to a fixed range so extreme inputs cannot distort the result');
+	}
+
+	// Check for return with computation
+	if (/return\s+[^;]+[+\-*/]/.test(code)) {
+		patterns.push('computes a derived value through arithmetic before returning it');
+	}
+
+	// Check for array methods
+	if (/\.(map|filter|reduce|forEach|find|some|every)\s*\(/.test(code)) {
+		const arrayMethod = code.match(/\.(map|filter|reduce|forEach|find|some|every)\s*\(/)?.[1];
+		patterns.push(`uses .${arrayMethod}() to process each item in a collection`);
+	}
+
+	// Check for async/await
+	if (/\bawait\s/.test(code)) {
+		patterns.push('awaits an asynchronous operation before proceeding with the result');
+	}
+
+	// First, match the explanation to what the question actually asked about
+	if (questionLower.includes('async') || questionLower.includes('wait')) {
+		return `The code uses asynchronous execution to prevent the program from freezing while waiting for a slow operation to finish. By yielding control while waiting, the rest of the application remains responsive.`;
+	}
+
+	if (questionLower.includes('math') || questionLower.includes('calculation')) {
+		return `The code applies a mathematical operation to normalize, scale, or constrain the data. Skipping this step would result in pushing raw, potentially invalid values further into the system.`;
+	}
+
+	if (questionLower.includes('return')) {
+		return `The evaluated logic produces a final transformed value that gets passed back to the caller. This prepared output is what the surrounding code relies on.`;
+	}
+
+	if (/\b(update|updat|upsert|field|column|record|row|table|database)\b/.test(questionLower)) {
+		return `The code writes updated data to storage so all subsequent operations work with the latest state instead of stale values. This prevents downstream logic from making decisions based on outdated information.`;
+	}
+
+	if (questionLower.includes('condition') || questionLower.includes('branch') || questionLower.includes('decision')) {
+		const condMatch = code.match(/if\s*\(([^)]{1,60})\)/)?.[1];
+		const condDesc = condMatch ? ` by testing whether \`${condMatch.trim()}\`` : '';
+		return `The code uses a conditional check${condDesc} to decide which execution path runs next. The branch ensures only the correct logic executes for the current state.`;
+	}
+
+	if (questionLower.includes('loop') || questionLower.includes('iteration') || questionLower.includes('pass')) {
+		return `The code iterates over a collection, applying a transformation to each item in sequence. The final result is assembled from the combined effect of all iterations.`;
+	}
+
+	if (questionLower.includes('error') || questionLower.includes('failure') || questionLower.includes('catch') || questionLower.includes('recovery')) {
+		return `The code wraps a risky operation in error handling so failures are caught instead of crashing the program. The catch path provides a recovery or fallback when the primary logic fails.`;
+	}
+
+	// If no specific question keywords matched, fall back to what's in the code
+	if (codeLower.includes('if (') || codeLower.includes('else')) {
+		const condMatch = code.match(/if\s*\(([^)]{1,60})\)/)?.[1];
+		const condDesc = condMatch ? ` by testing whether \`${condMatch.trim()}\`` : '';
+		return `The code uses a conditional check${condDesc} to decide which execution path runs next. The branch ensures only the correct logic executes for the current state.`;
+	}
+
+	// Use detected patterns to build a more specific generic fallback
+	if (patterns.length >= 2) {
+		return `The code ${patterns[0]}, then ${patterns[1]}. These steps work together to produce a reliable output from the given input.`;
+	}
+
+	if (patterns.length === 1) {
+		return `The code ${patterns[0]}. This operation transforms the input into the specific output that the rest of the program depends on.`;
+	}
+
+	if (funcName) {
+		return `The function ${funcName} processes its input by applying a series of transformations and checks. The result it returns is shaped so that downstream code can rely on it being in the expected format and range.`;
+	}
+
+	return 'The code transforms its input through a specific sequence of operations, where each step refines or validates the data before the next step uses it. The final output reflects the combined effect of all those transformations.';
 }
 
-function buildFallbackHint(question: string): string {
+function buildFallbackHint(code: string, question: string): string {
 	const lowered = question.toLowerCase();
+	if (/tier\s*1|tier\s*2|tier1|tier2|scorecourse|relevancescore|reasontype|hasoverlap|domaincourseskills/i.test(code)) {
+		if (lowered.includes('tier') || lowered.includes('explore')) {
+			return 'Track where Tier 1 stops, where Tier 2 begins, and what condition decides when fallback exploration is allowed.';
+		}
+
+		if (lowered.includes('score') || lowered.includes('reason')) {
+			return 'Follow which signal updates the best score, and notice how that winning signal controls both ranking and explanation type.';
+		}
+
+		if (lowered.includes('overlap') || lowered.includes('normalize') || lowered.includes('domain')) {
+			return 'Focus on why normalization happens before overlap checks and how that changes which records qualify for later scoring.';
+		}
+
+		return 'Map the pipeline stages in order: data fetch, domain filter, scoring, then tier-based fallback fill.';
+	}
+
+	if (/\baxios\.[a-z]+\s*\(|\bfetch\s*\(/i.test(code)) {
+		if (lowered.includes('error') || lowered.includes('catch') || lowered.includes('failure')) {
+			return 'Focus on what risky external operation can fail here and how the fallback return value protects callers from that failure.';
+		}
+
+		if (lowered.includes('query') || lowered.includes('param')) {
+			return 'Trace how function inputs are turned into request parameters, then connect that mapping to what the API will actually search for.';
+		}
+
+		if (lowered.includes('response') || lowered.includes('default') || lowered.includes('fallback')) {
+			return 'Look at the exact return expression and ask what shape callers always receive when the API payload is missing expected nested fields.';
+		}
+
+		return 'Track the lifecycle from request construction to response extraction, and notice why the code normalizes the returned payload before exposing it.';
+	}
+
 	if (/\b(update|field|column|record|row|table|database)\b/.test(lowered)) {
 		return 'Think about why the code must write a new value before later steps can safely trust and use that data.';
 	}

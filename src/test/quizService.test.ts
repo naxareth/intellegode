@@ -52,7 +52,7 @@ suite('Quiz Service', () => {
 			return 'What condition controls whether this block returns early?';
 		};
 
-		const question = await generateQuizQuestion('if (!user) return;', fakeCaller);
+		const question = await generateQuizQuestion('if (!user) return;', 'if (!user) return;', fakeCaller);
 		assert.strictEqual(question, 'What condition controls whether this block returns early?');
 		assert.strictEqual(calls.length, 2);
 	});
@@ -63,12 +63,62 @@ suite('Quiz Service', () => {
 
 		const question = await generateQuizQuestion(
 			'if (isReady) { runTask(); } else { scheduleRetry(); }',
+			'if (isReady) { runTask(); } else { scheduleRetry(); }',
 			fakeCaller,
 			[repeated]
 		);
 
 		assert.notStrictEqual(question, repeated);
 		assert.ok(question.endsWith('?'));
+	});
+
+	test('generateQuizQuestion fallback asks concrete API behavior questions', async () => {
+		const fakeCaller = async (): Promise<string> => 'How does this code work?';
+		const snippet = [
+			"const options = {",
+			"  params: { query: `${skill} in ${location}` },",
+			"  headers: { 'X-RapidAPI-Key': process.env.RAPIDAPI_KEY }",
+			"};",
+			'const response = await axios.request(options);',
+			'return response.data.data || [];'
+		].join('\n');
+
+		const question = await generateQuizQuestion(snippet, snippet, fakeCaller);
+		assert.ok(/query|request|response|fallback|api/i.test(question));
+		assert.strictEqual(/separate request construction from response normalization/i.test(question), false);
+	});
+
+	test('generateQuizQuestion rotates into tradeoff-focused API prompts', async () => {
+		const fakeCaller = async (): Promise<string> => 'What does this code do?';
+		const snippet = [
+			'const response = await axios.request(options);',
+			'return response.data.data || [];',
+			'} catch (error) {',
+			'  return [];',
+			'}'
+		].join('\n');
+
+		const recent = ['q1', 'q2', 'q3'];
+		const question = await generateQuizQuestion(snippet, snippet, fakeCaller, recent);
+		assert.ok(/ambiguity|stable return type|failed/i.test(question));
+	});
+
+	test('generateQuizQuestion fallback for recommendation engine avoids generic loop prompts', async () => {
+		const fakeCaller = async (): Promise<string> => 'How does this code work?';
+		const snippet = [
+			'function scoreCourse(courseTags: string[]) {',
+			'  let bestScore = 0;',
+			'  if (decayingMatches.length > 0) bestScore = 90;',
+			'  if (gapMatches.length > 0) bestScore = 80;',
+			'  return bestScore;',
+			'}',
+			'let tier1Recommendations: CourseRecommendation[] = [];',
+			'if (tier1Recommendations.length >= topN) return tier1Recommendations.slice(0, topN);'
+		].join('\n');
+
+		const question = await generateQuizQuestion(snippet, snippet, fakeCaller);
+		assert.ok(/tier|score|reason|domain|fallback|signal|supabase|normalize|overlap|pipeline/i.test(question));
+		assert.strictEqual(/each iteration|loop in this code/i.test(question), false);
 	});
 
 	test('evaluateAnswer retries once for malformed output', async () => {
@@ -118,8 +168,28 @@ suite('Quiz Service', () => {
 			'qwen3.5:4b',
 			fakeCaller
 		);
-		assert.ok(result.includes('updates an existing stored value'));
+		assert.ok(result.includes('writes updated data'));
 		assert.ok(result.includes('outdated information'));
+	});
+
+	test('evaluateAnswer API fallback explains normalization and stable return shape', async () => {
+		const fakeCaller = async (): Promise<string> => 'Nope.';
+		const code = [
+			'const response = await axios.request(options);',
+			'return response.data.data || [];',
+			'} catch (error) {',
+			'  return [];',
+			'}'
+		].join('\n');
+		const result = await evaluateAnswer(
+			code,
+			'Why does this function return response.data.data || []?',
+			'i am not sure',
+			'qwen3.5:4b',
+			fakeCaller
+		);
+		assert.ok(result.includes('empty array'));
+		assert.ok(result.includes('predictable'));
 	});
 
 	test('evaluateAnswer prefers valid repaired output over template fallback', async () => {

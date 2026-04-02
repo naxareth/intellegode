@@ -2,8 +2,9 @@ import { OllamaGenerateResponse } from './types';
 
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
 const OLLAMA_TAGS_URL = 'http://localhost:11434/api/tags';
-const DEFAULT_OLLAMA_MODEL = 'qwen2.5:3b';
-const PREFERRED_FALLBACK_MODELS = ['qwen2.5:3b', 'qwen3:4b', 'qwen3.5:4b'];
+const DEFAULT_OLLAMA_MODEL = 'qwen3.5:4b';
+const PREFERRED_FALLBACK_MODELS = ['qwen3.5:4b', 'qwen3:4b', 'qwen2.5:3b'];
+const DEFAULT_NUM_CTX = 4096;
 
 type OllamaTagsResponse = {
 	models?: Array<{ name?: string }>;
@@ -12,6 +13,7 @@ type OllamaTagsResponse = {
 type GenerateOptions = {
 	forceCpu?: boolean;
 	reduceContext?: boolean;
+	numCtx?: number;
 };
 
 function isModelNotFoundError(error: unknown): boolean {
@@ -77,7 +79,7 @@ async function generateWithModel(
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), timeoutMs);
 	const shouldForceCpu = generateOptions.forceCpu || process.env.INTELLEGODE_OLLAMA_FORCE_CPU === '1';
-	const numCtx = generateOptions.reduceContext ? 512 : 1024;
+	const numCtx = generateOptions.numCtx ?? (generateOptions.reduceContext ? 1024 : DEFAULT_NUM_CTX);
 
 	try {
 		const response = await fetch(OLLAMA_URL, {
@@ -94,7 +96,7 @@ async function generateWithModel(
 					...(shouldForceCpu ? { num_gpu: 0 } : {})
 				},
 				stream: false,
-				keep_alive: '30s'
+				keep_alive: '10m'
 			})
 		});
 
@@ -124,10 +126,11 @@ export async function callOllama(
 	prompt: string,
 	model: string = DEFAULT_OLLAMA_MODEL,
 	maxTokens: number = 300,
-	timeoutMs: number = 45000
+	timeoutMs: number = 45000,
+	numCtx?: number
 ): Promise<string> {
 	try {
-		return await generateWithModel(prompt, model, maxTokens, timeoutMs);
+		return await generateWithModel(prompt, model, maxTokens, timeoutMs, numCtx ? { numCtx } : {});
 	} catch (error) {
 		if (isModelLoadFailure(error)) {
 			console.warn(`Model load failed for '${model}'. Retrying with safer CPU-oriented options.`);

@@ -631,9 +631,8 @@ export function getQuizWebviewHtml(question: string): string {
       submitBtn.addEventListener('click', function () {
         hideReview();
         if (result) {
-          result.className = 'result-box visible';
-          result.textContent = 'Generating explanation...';
-          safeScrollIntoView(result);
+          result.className = 'result-box';
+          result.textContent = '';
         }
         var answer = answerInput ? answerInput.value.trim() : '';
         postToExtension({ command: 'submitAnswer', answer: answer });
@@ -729,15 +728,40 @@ export function getQuizWebviewHtml(question: string): string {
       if (statMissedIt) statMissedIt.textContent = '\\u2717 ' + missed + ' missed it';
     }
 
+    var loadingMessages = ['Thinking...', 'Reading code...', 'Analyzing logic...', 'Generating...'];
+    var loadingInterval = null;
+    var loadingIndex = 0;
+
     window.addEventListener('message', function (event) {
       var msg = event.data || {};
 
       if (msg.command === 'setLoading') {
         var on = Boolean(msg.loading);
-        if (loading) loading.classList.toggle('visible', on);
-        if (on) {
-          safeScrollIntoView(loading);
+        
+        if (loading) {
+          loading.classList.toggle('visible', on);
+          if (on) {
+            loadingIndex = 0;
+            loading.textContent = loadingMessages[loadingIndex];
+            safeScrollIntoView(loading);
+            
+            // Clear any existing interval
+            if (loadingInterval) clearInterval(loadingInterval);
+            
+            // Cycle text every 2.5 seconds
+            loadingInterval = setInterval(function() {
+              loadingIndex = (loadingIndex + 1) % loadingMessages.length;
+              loading.textContent = loadingMessages[loadingIndex];
+            }, 2500);
+          } else {
+            // Stop cycling when loading is done
+            if (loadingInterval) {
+              clearInterval(loadingInterval);
+              loadingInterval = null;
+            }
+          }
         }
+        
         if (submitBtn) submitBtn.disabled = on;
         if (hintBtn) hintBtn.disabled = on;
         if (newQuestionBtn) newQuestionBtn.disabled = on;

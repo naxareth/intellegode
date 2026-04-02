@@ -11,12 +11,13 @@ const recentQuestionsBySelection = new Map<string, string[]>();
 export async function startQuizSession(
 	panel: vscode.WebviewPanel,
 	selectedCode: string,
+	fileCodeContext: string,
 	evaluatorModel: string
 ): Promise<void> {
 	const selectionKey = normalizeSelectionKey(selectedCode);
 	const selectionHistory = recentQuestionsBySelection.get(selectionKey) ?? [];
 	const askedQuestions: string[] = [...selectionHistory, ...globalRecentQuestions].slice(-12);
-	let currentQuestion = await generateQuizQuestion(selectedCode, undefined, askedQuestions);
+	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
 	askedQuestions.push(currentQuestion);
 	recordQuestion(selectionKey, currentQuestion);
 	let gotItCount = 0;
@@ -69,7 +70,7 @@ export async function startQuizSession(
 		if (message.command === 'newQuestion') {
 			panel.webview.postMessage({ command: 'setLoading', loading: true });
 			try {
-				currentQuestion = await generateQuizQuestion(selectedCode, undefined, askedQuestions);
+				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
 				askedQuestions.push(currentQuestion);
 				if (askedQuestions.length > 12) {
 					askedQuestions.splice(0, askedQuestions.length - 12);
