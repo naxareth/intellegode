@@ -3,6 +3,7 @@ import {
 	buildEvaluatePrompt,
 	buildEvaluationRepairPrompt,
 	buildHintPrompt,
+	QuestionFocusMode,
 	buildQuizQuestionRepairPrompt,
 	buildQuizQuestionPrompt
 } from './prompts';
@@ -33,11 +34,12 @@ export async function generateQuizQuestion(
 	const selectedSnippetContext = prepareContext(selectedCode, MAX_SELECTED_SNIPPET_CHARS);
 	const fileContext = prepareContext(fileCodeContext || selectedCode, MAX_FILE_CONTEXT_CHARS);
 	const seenQuestions = recentQuestions.slice(-QUESTION_HISTORY_WINDOW);
+	const focusMode = chooseQuestionFocusMode(seenQuestions);
 
 	for (let attempt = 0; attempt < MAX_QUESTION_ATTEMPTS; attempt += 1) {
 		// First request can include model cold-start, so keep this timeout more forgiving.
 		const first = await ollamaCaller(
-			buildQuizQuestionPrompt(selectedSnippetContext, fileContext, seenQuestions),
+			buildQuizQuestionPrompt(selectedSnippetContext, fileContext, seenQuestions, focusMode),
 			QUIZ_MODEL,
 			60,
 			QUIZ_QUESTION_TIMEOUT_MS,
@@ -57,7 +59,7 @@ export async function generateQuizQuestion(
 		}
 
 		const repaired = await ollamaCaller(
-			buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, seenQuestions),
+			buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, seenQuestions, focusMode),
 			QUIZ_MODEL,
 			80,
 			QUIZ_QUESTION_TIMEOUT_MS,
@@ -77,7 +79,7 @@ export async function generateQuizQuestion(
 		}
 	}
 
-	return buildFallbackQuestion(selectedSnippetContext, seenQuestions);
+	return buildFallbackQuestion(selectedSnippetContext, seenQuestions, focusMode);
 }
 
 export function normalizeQuizQuestionOutput(raw: string): string | null {
@@ -148,7 +150,7 @@ function isValidQuestion(text: string): boolean {
 	return true;
 }
 
-function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]): string {
+function buildFallbackQuestion(selectedCode: string, recentQuestions: string[], focusMode: QuestionFocusMode): string {
 	const codeLower = selectedCode.toLowerCase();
 	const hasApiCall = /\baxios\.[a-z]+\s*\(|\bfetch\s*\(/i.test(selectedCode);
 	const hasRequestOptions = /\b(headers|params|method|url)\b/i.test(selectedCode);
@@ -158,28 +160,12 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 	const hasCatchFallbackArray = /catch\s*\([^)]*\)[\s\S]{0,240}?return\s*\[\s*\]/i.test(selectedCode);
 
 	if (hasApiCall && hasRequestOptions) {
-		const apiCandidates: string[] = [];
-
-		if (hasTemplateQuery) {
-			apiCandidates.push('How does interpolating the query from function inputs influence what the external API actually searches for?');
-		}
-
-		if (hasResponseMapping) {
-			apiCandidates.push('Why does the success path extract nested response data with a fallback default before returning it?');
-		}
-
-		if (hasCatchFallbackArray) {
-			apiCandidates.push('How does returning an empty list in the catch path keep callers stable when the API request fails?');
-		}
-
-		if (hasApiHeaders) {
-			apiCandidates.push('Why are explicit API headers included in the request options instead of relying on defaults?');
-		}
-
-		apiCandidates.push(
-			'How are request options assembled from inputs before the outbound API call is executed?',
-			'What would break for callers if this function returned raw API output without normalization?'
-		);
+		const apiCandidates = buildApiCandidates(focusMode, {
+			hasTemplateQuery,
+			hasResponseMapping,
+			hasCatchFallbackArray,
+			hasApiHeaders
+		});
 
 		return pickNonRepeatedQuestion(
 			apiCandidates,
@@ -189,12 +175,19 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 	}
 
 	if (hasResponseMapping) {
-		return pickNonRepeatedQuestion(
-			[
+		const mappingCandidates = focusMode === 'tradeoff'
+			? [
+				'What ambiguity does returning [] for both "no data" and "request failure" create for upstream callers?',
+				'How could this function keep a stable return type while still exposing whether the API request actually failed?',
+				'What trade-off does this fallback design make between simplicity and observability?'
+			]
+			: [
 				'Why does this code normalize the API response to a safe default value before returning it?',
 				'What problem does the fallback default prevent when extracting nested response data?',
 				'How does this return mapping protect callers from incomplete API payloads?'
-			],
+			];
+		return pickNonRepeatedQuestion(
+			mappingCandidates,
 			recentQuestions,
 			selectedCode
 		);
@@ -227,24 +220,38 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 	}
 
 	if (codeLower.includes('if') || codeLower.includes('else')) {
-		return pickNonRepeatedQuestion(
-			[
+		const conditionalCandidates = focusMode === 'tradeoff'
+			? [
+				'What incorrect behavior could happen if this conditional guard were removed?',
+				'What trade-off does this branch introduce between strict validation and permissive flow?',
+				'How would downstream logic change if both branch paths were allowed to run?'
+			]
+			: [
 				'What specific condition determines which execution path the code takes here?',
 				'What different outcomes result from the conditional check passing versus failing?',
 				'Why does this decision check need to happen before the rest of the logic can proceed?'
-			],
+			];
+		return pickNonRepeatedQuestion(
+			conditionalCandidates,
 			recentQuestions,
 			selectedCode
 		);
 	}
 
 	if (codeLower.includes('try {') || codeLower.includes('catch')) {
-		return pickNonRepeatedQuestion(
-			[
+		const failureCandidates = focusMode === 'behavior'
+			? [
 				'What exact operation is protected by this try/catch block, and what failure mode is it defending against?',
 				'How does the catch path preserve function stability for callers when the primary operation fails?',
-				'What trade-off does this error fallback introduce compared with letting the error propagate?'
-			],
+				'What fallback value does this code return when the protected operation throws?'
+			]
+			: [
+				'What trade-off does this error fallback introduce compared with letting the error propagate?',
+				'What debugging signal is lost when the catch path masks upstream failures with a default value?',
+				'How might you preserve reliability while still surfacing failure details to callers?'
+			];
+		return pickNonRepeatedQuestion(
+			failureCandidates,
 			recentQuestions,
 			selectedCode
 		);
@@ -299,6 +306,63 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[]):
 		recentQuestions,
 		selectedCode
 	);
+}
+
+function chooseQuestionFocusMode(recentQuestions: string[]): QuestionFocusMode {
+	const modes: QuestionFocusMode[] = ['behavior', 'mechanism', 'failure', 'tradeoff'];
+	return modes[recentQuestions.length % modes.length]!;
+}
+
+function buildApiCandidates(
+	focusMode: QuestionFocusMode,
+	flags: {
+		hasTemplateQuery: boolean;
+		hasResponseMapping: boolean;
+		hasCatchFallbackArray: boolean;
+		hasApiHeaders: boolean;
+	}
+): string[] {
+	const candidates: string[] = [];
+
+	if (focusMode === 'behavior') {
+		if (flags.hasTemplateQuery) {
+			candidates.push('How does interpolating the query from function inputs influence what the external API actually searches for?');
+		}
+		if (flags.hasResponseMapping) {
+			candidates.push('Why does the success path extract nested response data with a fallback default before returning it?');
+		}
+		if (flags.hasCatchFallbackArray) {
+			candidates.push('How does returning an empty list in the catch path keep callers stable when the API request fails?');
+		}
+	}
+
+	if (focusMode === 'mechanism') {
+		candidates.push(
+			'How are request options assembled from inputs before the outbound API call is executed?',
+			'How does the control flow move from request construction to response extraction in the success path?'
+		);
+	}
+
+	if (focusMode === 'failure') {
+		candidates.push(
+			'What specific failure points can occur between the outbound API request and the returned list value?',
+			'How does this function ensure callers still receive a usable value when network or API failures occur?'
+		);
+	}
+
+	if (focusMode === 'tradeoff') {
+		candidates.push(
+			'What ambiguity does returning [] in both the catch path and empty-success cases create for callers?',
+			'How could this function preserve a stable return type while still exposing whether the API call failed?'
+		);
+	}
+
+	if (flags.hasApiHeaders) {
+		candidates.push('Why are explicit API headers included in the request options instead of relying on defaults?');
+	}
+
+	candidates.push('What would break for callers if this function returned raw API output without normalization?');
+	return candidates;
 }
 
 function isRepeatedQuestion(candidate: string, recentQuestions: string[]): boolean {

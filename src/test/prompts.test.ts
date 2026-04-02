@@ -7,6 +7,7 @@ suite('Prompt Builders', () => {
 		assert.ok(prompt.includes('code comprehension coach helping a developer truly understand their own code'));
 		assert.ok(prompt.includes('single most important concrete operation'));
 		assert.ok(prompt.includes('MUST reference a specific behavior visible in the snippet'));
+		assert.ok(prompt.includes('Focus mode for this turn'));
 		assert.ok(prompt.includes('Do NOT ask "What is the purpose of this code?"'));
 	});
 

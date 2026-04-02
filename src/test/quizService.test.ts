@@ -88,6 +88,21 @@ suite('Quiz Service', () => {
 		assert.strictEqual(/separate request construction from response normalization/i.test(question), false);
 	});
 
+	test('generateQuizQuestion rotates into tradeoff-focused API prompts', async () => {
+		const fakeCaller = async (): Promise<string> => 'What does this code do?';
+		const snippet = [
+			'const response = await axios.request(options);',
+			'return response.data.data || [];',
+			'} catch (error) {',
+			'  return [];',
+			'}'
+		].join('\n');
+
+		const recent = ['q1', 'q2', 'q3'];
+		const question = await generateQuizQuestion(snippet, snippet, fakeCaller, recent);
+		assert.ok(/ambiguity|stable return type|failed/i.test(question));
+	});
+
 	test('evaluateAnswer retries once for malformed output', async () => {
 		const calls: string[] = [];
 		const fakeCaller = async (prompt: string): Promise<string> => {

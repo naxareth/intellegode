@@ -1,4 +1,12 @@
-export function buildQuizQuestionPrompt(selectedCode: string, fileContext: string, avoidQuestions: string[] = []): string {
+export type QuestionFocusMode = 'behavior' | 'mechanism' | 'failure' | 'tradeoff';
+
+export function buildQuizQuestionPrompt(
+	selectedCode: string,
+	fileContext: string,
+	avoidQuestions: string[] = [],
+	focusMode: QuestionFocusMode = 'behavior'
+): string {
+	const focusInstruction = describeFocusMode(focusMode);
 	const lines = [
 		'You are a code comprehension coach helping a developer truly understand their own code.',
 		'',
@@ -6,6 +14,7 @@ export function buildQuizQuestionPrompt(selectedCode: string, fileContext: strin
 		'1. Read the selected snippet carefully.',
 		'2. Identify the single most important concrete operation it performs (for example: a calculation, a data transformation, a conditional guard, a loop accumulation, an API call, error handling).',
 		'3. Write exactly one short question that asks the learner to explain WHY or HOW that specific operation works.',
+		`4. Focus mode for this turn: ${focusInstruction}`,
 		'',
 		'STRICT RULES:',
 		'- The question MUST reference a specific behavior visible in the snippet, not a vague "purpose".',
@@ -41,11 +50,14 @@ export function buildQuizQuestionRepairPrompt(
 	rawOutput: string,
 	selectedCode: string,
 	fileContext: string,
-	avoidQuestions: string[] = []
+	avoidQuestions: string[] = [],
+	focusMode: QuestionFocusMode = 'behavior'
 ): string {
+	const focusInstruction = describeFocusMode(focusMode);
 	const lines = [
 		'The following output was supposed to be a code comprehension question but is malformed.',
 		'Rewrite it into exactly one clear, specific question about the behavior of the selected code snippet.',
+		`Focus mode for this turn: ${focusInstruction}`,
 		'',
 		'STRICT RULES:',
 		'- Output exactly one question ending with a question mark.',
@@ -175,4 +187,20 @@ function buildAvoidQuestionLines(avoidQuestions: string[]): string[] {
 		'Avoid repeating any of these existing questions:',
 		...cleaned.map((question) => `- ${question}`)
 	];
+}
+
+function describeFocusMode(focusMode: QuestionFocusMode): string {
+	if (focusMode === 'mechanism') {
+		return 'mechanism (ask how the operation is implemented step by step)';
+	}
+
+	if (focusMode === 'failure') {
+		return 'failure-handling (ask what breaks and how the code recovers)';
+	}
+
+	if (focusMode === 'tradeoff') {
+		return 'tradeoff (ask design consequences, ambiguity, or alternative choices)';
+	}
+
+	return 'behavior (ask what concrete operation it performs and why)';
 }
