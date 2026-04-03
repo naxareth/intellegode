@@ -1,6 +1,6 @@
-import { OllamaGenerateResponse } from './types';
+import { OllamaChatResponse } from './types';
 
-const OLLAMA_URL = 'http://localhost:11434/api/generate';
+const OLLAMA_URL = 'http://localhost:11434/api/chat';
 const OLLAMA_TAGS_URL = 'http://localhost:11434/api/tags';
 const DEFAULT_OLLAMA_MODEL = 'qwen3.5:4b';
 const PREFERRED_FALLBACK_MODELS = ['qwen3.5:4b', 'qwen3:4b', 'qwen2.5:3b'];
@@ -88,7 +88,7 @@ async function generateWithModel(
 			signal: controller.signal,
 			body: JSON.stringify({
 				model,
-				prompt,
+				messages: [{ role: 'user', content: prompt }],
 				options: {
 					num_predict: maxTokens,
 					temperature: 0.2,
@@ -111,12 +111,12 @@ async function generateWithModel(
 			throw new Error(`Ollama returned ${response.status} ${response.statusText}${suffix}`);
 		}
 
-		const data = (await response.json()) as OllamaGenerateResponse;
+		const data = (await response.json()) as OllamaChatResponse;
 		if (data.error) {
 			throw new Error(data.error);
 		}
 
-		return data.response?.trim() ?? '';
+		return data.message?.content?.trim() ?? '';
 	} finally {
 		clearTimeout(timeout);
 	}
