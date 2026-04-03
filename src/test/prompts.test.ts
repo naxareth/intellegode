@@ -4,11 +4,10 @@ import { buildEvaluatePrompt, buildHintPrompt, buildQuizQuestionPrompt } from '.
 suite('Prompt Builders', () => {
 	test('buildQuizQuestionPrompt enforces beginner single-concept question', () => {
 		const prompt = buildQuizQuestionPrompt('const x = 1;', 'const x = 1;\nconsole.log(x);');
-		assert.ok(prompt.includes('code comprehension coach helping a developer truly understand their own code'));
-		assert.ok(prompt.includes('single most important concrete operation'));
-		assert.ok(prompt.includes('MUST reference a specific behavior visible in the snippet'));
-		assert.ok(prompt.includes('Focus mode for this turn'));
-		assert.ok(prompt.includes('Do NOT ask "What is the purpose of this code?"'));
+		assert.ok(prompt.includes('Write one code-comprehension question about the selected snippet.'));
+		assert.ok(prompt.includes('- Output ONLY one question and nothing else.'));
+		assert.ok(prompt.includes('- The question must end with a question mark.'));
+		assert.ok(prompt.includes('- Mention one exact identifier from the snippet'));
 	});
 
 	test('buildQuizQuestionPrompt includes anti-repeat list when provided', () => {
@@ -23,24 +22,18 @@ suite('Prompt Builders', () => {
 
 	test('buildHintPrompt enforces conceptual-only hint', () => {
 		const prompt = buildHintPrompt('function a() {}', 'What does this do?');
-		assert.ok(prompt.includes('conceptual nudge'));
-		assert.ok(prompt.includes('Do NOT mention any specific variable names'));
-		assert.ok(prompt.includes('Do NOT give away the answer'));
-		assert.ok(prompt.includes('If the code contains a recognizable pattern'));
-		assert.ok(prompt.includes('GOOD hint examples:'));
-		assert.ok(prompt.includes('Keep the hint tied to the behavior asked in the question'));
-		assert.ok(prompt.includes('general programming concept'));
+		assert.ok(prompt.includes('Write one conceptual hint for the learner.'));
+		assert.ok(prompt.includes('- Output exactly one sentence.'));
+		assert.ok(prompt.includes('- Keep it conceptual; do not mention exact identifiers from the code.'));
+		assert.ok(prompt.includes('- Do not reveal the answer.'));
 	});
 
 	test('buildEvaluatePrompt requests explanation-only output', () => {
 		const prompt = buildEvaluatePrompt('code', 'question');
-		assert.ok(prompt.includes('Reference at least one concrete operation from the code'));
-		assert.ok(prompt.includes('Never give a generic answer that could apply to many code snippets'));
-		assert.ok(prompt.includes('focus your explanation on the single most important thing it does'));
-		assert.ok(prompt.includes('keep the explanation centered on that behavior'));
-		assert.ok(prompt.includes('Never reference, quote, or repeat the learner answer.'));
-		assert.ok(prompt.includes('Use a maximum of 3 sentences.'));
-		assert.ok(prompt.includes('Do not restate the question.'));
+		assert.ok(prompt.includes('Explain the code behavior that answers the question.'));
+		assert.ok(prompt.includes('- Use plain English in 1 to 3 sentences.'));
+		assert.ok(prompt.includes('- Mention at least one exact identifier from the code.'));
+		assert.ok(prompt.includes('- Do not output labels, grading, or the learner answer.'));
 		assert.ok(prompt.includes('Correct explanation:'));
 	});
 });
