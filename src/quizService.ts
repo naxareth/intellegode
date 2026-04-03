@@ -94,16 +94,40 @@ export function normalizeQuizQuestionOutput(raw: string): string | null {
 	const questionSegments = flattened.match(/[^.!?;:]*\?/g) ?? [];
 	for (const segment of questionSegments) {
 		const candidate = segment.trim();
-		if (candidate) {
+		if (candidate && isUsableQuestionCandidate(candidate)) {
 			return candidate;
 		}
 	}
 
 	if (flattened.includes('?')) {
-		return flattened.slice(0, flattened.indexOf('?') + 1).trim();
+		const firstQuestion = flattened.slice(0, flattened.indexOf('?') + 1).trim();
+		return isUsableQuestionCandidate(firstQuestion) ? firstQuestion : null;
 	}
 
 	return null;
+}
+
+function isUsableQuestionCandidate(candidate: string): boolean {
+	const normalized = candidate.replace(/\s+/g, ' ').trim();
+	if (!normalized || !normalized.endsWith('?')) {
+		return false;
+	}
+
+	const withoutQuestionMark = normalized.slice(0, -1).trim();
+	if (!withoutQuestionMark || withoutQuestionMark.length < 8) {
+		return false;
+	}
+
+	const words = withoutQuestionMark.split(/\s+/).filter(Boolean);
+	if (words.length < 2) {
+		return false;
+	}
+
+	if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/.test(withoutQuestionMark)) {
+		return false;
+	}
+
+	return true;
 }
 
 function buildFallbackQuestion(selectedCode: string, recentQuestions: string[], focusMode: QuestionFocusMode): string {

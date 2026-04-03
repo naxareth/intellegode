@@ -42,6 +42,11 @@ suite('Quiz Service', () => {
 		assert.strictEqual(normalized, 'What decides whether a user is created or updated?');
 	});
 
+	test('normalizeQuizQuestionOutput rejects identifier-only questions', () => {
+		const normalized = normalizeQuizQuestionOutput('getGenerativeModel?');
+		assert.strictEqual(normalized, null);
+	});
+
 	test('generateQuizQuestion retries with repair prompt when first output is malformed', async () => {
 		const calls: string[] = [];
 		const fakeCaller = async (prompt: string): Promise<string> => {
