@@ -115,7 +115,9 @@ async function generateWithModel(
 			throw new Error(data.error);
 		}
 
-		return data.message?.content?.trim() ?? '';
+		const rawContent = data.message?.content ?? '';
+		console.warn(`[INTELLEGODE][OLLAMA RAW][${model}]`, rawContent);
+		return rawContent.trim();
 	} finally {
 		clearTimeout(timeout);
 	}
