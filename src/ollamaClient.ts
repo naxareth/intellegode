@@ -72,12 +72,12 @@ function pickFallbackModel(requestedModel: string, availableModels: string[]): s
 async function generateWithModel(
 	prompt: string,
 	model: string,
-	maxTokens: number,
-	timeoutMs: number,
+	_maxTokens: number,
+	_timeoutMs: number,
 	generateOptions: GenerateOptions = {}
 ): Promise<string> {
 	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+	const timeout = setTimeout(() => controller.abort(), 120000);
 	const shouldForceCpu = generateOptions.forceCpu || process.env.INTELLEGODE_OLLAMA_FORCE_CPU === '1';
 	const numCtx = generateOptions.numCtx ?? (generateOptions.reduceContext ? 1024 : DEFAULT_NUM_CTX);
 
@@ -88,9 +88,8 @@ async function generateWithModel(
 			signal: controller.signal,
 			body: JSON.stringify({
 				model,
-				messages: [{ role: 'user', content: prompt }],
+				messages: [{ role: 'system', content: 'You are a fast API. Do not output thinking processes or internal monologues. Provide only the final answer.' }, { role: 'user', content: prompt }],
 				options: {
-					num_predict: maxTokens,
 					temperature: 0.2,
 					num_ctx: numCtx,
 					...(shouldForceCpu ? { num_gpu: 0 } : {})
