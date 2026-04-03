@@ -5,6 +5,7 @@ const OLLAMA_TAGS_URL = 'http://localhost:11434/api/tags';
 const DEFAULT_OLLAMA_MODEL = 'qwen3.5:4b';
 const PREFERRED_FALLBACK_MODELS = ['qwen3.5:4b', 'qwen3:4b', 'qwen2.5:3b'];
 const DEFAULT_NUM_CTX = 4096;
+const MIN_REASONING_TIMEOUT_MS = 300000;
 
 type OllamaTagsResponse = {
 	models?: Array<{ name?: string }>;
@@ -73,11 +74,12 @@ async function generateWithModel(
 	prompt: string,
 	model: string,
 	_maxTokens: number,
-	_timeoutMs: number,
+	timeoutMs: number,
 	generateOptions: GenerateOptions = {}
 ): Promise<string> {
 	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), 120000);
+	const requestTimeoutMs = Math.max(timeoutMs, MIN_REASONING_TIMEOUT_MS);
+	const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
 	const shouldForceCpu = generateOptions.forceCpu || process.env.INTELLEGODE_OLLAMA_FORCE_CPU === '1';
 	const numCtx = generateOptions.numCtx ?? (generateOptions.reduceContext ? 1024 : DEFAULT_NUM_CTX);
 
@@ -118,6 +120,12 @@ async function generateWithModel(
 		const rawContent = data.message?.content ?? '';
 		console.warn(`[INTELLEGODE][OLLAMA RAW][${model}]`, rawContent);
 		return rawContent.trim();
+	} catch (error) {
+		if (error instanceof Error && error.name === 'AbortError') {
+			throw new Error(`Ollama chat request timed out after ${requestTimeoutMs}ms for model '${model}'.`);
+		}
+
+		throw error;
 	} finally {
 		clearTimeout(timeout);
 	}
