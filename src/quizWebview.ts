@@ -1,4 +1,4 @@
-export function getQuizWebviewHtml(question: string): string {
+export function getQuizWebviewHtml(question: string, showSnippetLengthWarning: boolean = false): string {
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -59,6 +59,18 @@ export function getQuizWebviewHtml(question: string): string {
       padding: 16px;
       margin-bottom: 20px;
       animation: slideIn 0.3s ease;
+    }
+
+    .selection-tip {
+      background: rgba(210, 153, 34, 0.14);
+      border: 1px solid rgba(210, 153, 34, 0.45);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      color: #f2cc60;
+      font-size: 12px;
+      line-height: 1.5;
+      animation: slideIn 0.2s ease;
     }
 
     .question-label {
@@ -490,6 +502,8 @@ export function getQuizWebviewHtml(question: string): string {
     <div class="logo">ig</div>
     <span class="brand">INTELLEGODE</span>
   </div>
+
+  ${showSnippetLengthWarning ? '<div class="selection-tip">Tip: For best results, highlight a single function or small block — not the entire file.</div>' : ''}
 
   <div class="question-card">
     <div class="question-label">▸ Comprehension Check</div>

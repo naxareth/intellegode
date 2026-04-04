@@ -4,7 +4,7 @@ const OLLAMA_URL = 'http://localhost:11434/api/chat';
 const OLLAMA_TAGS_URL = 'http://localhost:11434/api/tags';
 const DEFAULT_OLLAMA_MODEL = 'qwen3.5:4b';
 const PREFERRED_FALLBACK_MODELS = ['qwen3.5:4b', 'qwen3:4b', 'qwen2.5:3b'];
-const DEFAULT_NUM_CTX = 4096;
+const DEFAULT_NUM_CTX = 3072;
 const OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS = Number.parseInt(process.env.INTELLEGODE_OLLAMA_REQUEST_TIMEOUT_MS ?? '0', 10);
 
 type OllamaTagsResponse = {
