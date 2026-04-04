@@ -148,6 +148,20 @@ suite('Quiz Service', () => {
 		assert.strictEqual(/genai|getgenerativemodel/i.test(question), false);
 	});
 
+	test('generateQuizQuestion rejects syntax-style default-value and parameter-name prompts', async () => {
+		const syntaxQuestion = 'What is the default value of timeoutMs in this function?';
+		const fakeCaller = async (): Promise<string> => syntaxQuestion;
+		const snippet = [
+			'function buildClient(timeoutMs = 5000, model = "qwen") {',
+			'  return { timeoutMs, model };',
+			'}'
+		].join('\n');
+
+		const question = await generateQuizQuestion(snippet, snippet, fakeCaller);
+		assert.notStrictEqual(question, syntaxQuestion);
+		assert.strictEqual(/default value|parameter name/i.test(question), false);
+	});
+
 	test('evaluateAnswer retries once for malformed output', async () => {
 		const calls: string[] = [];
 		const fakeCaller = async (prompt: string): Promise<string> => {

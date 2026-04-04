@@ -16,9 +16,9 @@ const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 60000;
 const QUIZ_MODEL = 'qwen3.5:4b';
 const MAX_QUESTION_ATTEMPTS = 2;
 const QUESTION_HISTORY_WINDOW = 8;
-const MAX_SELECTED_SNIPPET_CHARS = 4000;
-const MAX_FILE_CONTEXT_CHARS = 5000;
-const QUESTION_HINT_NUM_CTX = 2048;
+const MAX_SELECTED_SNIPPET_CHARS = 2000;
+const MAX_FILE_CONTEXT_CHARS = 1500;
+const QUESTION_HINT_NUM_CTX = 3072;
 
 type QuestionFocusMode = 'behavior' | 'mechanism' | 'failure' | 'tradeoff';
 
@@ -417,7 +417,10 @@ function isLikelyGenericQuestion(question: string): boolean {
         lowered.startsWith('what does this code do') ||
         lowered.startsWith('how does this code work') ||
         lowered.startsWith('what is the purpose of this code') ||
-        lowered.startsWith('what is this code doing')
+        lowered.startsWith('what is this code doing') ||
+        lowered.includes('default value') ||
+        lowered.includes('parameter name') ||
+        lowered.includes('what is the')
     );
 }
 
