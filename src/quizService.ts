@@ -35,6 +35,12 @@ export async function generateQuizQuestion(
     let lastFirst = '';
     let lastRepaired = '';
 
+    const wasSnippetTrimmed = selectedCode.trim().length > MAX_SELECTED_SNIPPET_CHARS;
+    console.warn(
+        `[INTELLEGODE][QUESTION INPUT] snippetChars=${selectedSnippetContext.length} snippetTrimmed=${wasSnippetTrimmed} fileContextChars=${fileContext.length} recentQuestions=${seenQuestions.length}`
+    );
+    console.warn(`[INTELLEGODE][HIGHLIGHTED CODE]\n${selectedSnippetContext}`);
+
     for (let attempt = 0; attempt < MAX_QUESTION_ATTEMPTS; attempt += 1) {
         // First request can include model cold-start, so keep this timeout more forgiving.
         const first = await ollamaCaller(
