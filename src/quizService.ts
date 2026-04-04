@@ -365,12 +365,12 @@ export async function evaluateAnswer(
 }
 
 export function normalizeExplanationOutput(raw: string): string | null {
-    const oneLine = raw.replace(/\r?\n+/g, ' ').trim();
-    if (!oneLine) {
+    const normalized = raw.replace(/\r\n?/g, '\n').trim();
+    if (!normalized) {
         return null;
     }
 
-    const sanitized = limitToSentences(stripLeadingGradeLabels(oneLine), 3);
+    const sanitized = stripMarkdownFormatting(stripLeadingGradeLabels(normalized)).trim();
     if (!sanitized) {
         return null;
     }
@@ -482,24 +482,20 @@ function extractMeaningfulIdentifiers(text: string): Set<string> {
     return identifiers;
 }
 
-function limitToSentences(text: string, maxSentences: number): string {
-    const matches = text.match(/[^.!?]+[.!?]/g);
-    if (!matches || matches.length === 0) {
-        return text.trim();
-    }
-
-    return matches
-        .slice(0, maxSentences)
-        .map((s) => s.trim())
-        .join(' ')
-        .trim();
-}
-
 function stripLeadingGradeLabels(text: string): string {
     return text
         .replace(/^\s*\[(PASS|PARTIAL|MISS)\]\s*/i, '')
         .replace(/^\s*(PASS|PARTIAL|MISS)\s*[:\-]\s*/i, '')
         .trim();
+}
+
+function stripMarkdownFormatting(text: string): string {
+    return text
+        .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/__([^_]+)__/g, '$1')
+        .replace(/\*([^*\n]+)\*/g, '$1')
+        .replace(/_([^_\n]+)_/g, '$1');
 }
 
 function buildGroundedFallbackExplanation(code: string, question: string): string {
