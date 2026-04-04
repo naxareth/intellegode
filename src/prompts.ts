@@ -57,12 +57,12 @@ export function buildQuizQuestionRepairPrompt(
 
 export function buildHintPrompt(code: string, question: string): string {
 	return [
-		'Write one conceptual hint for the learner.',
+		'Write one conceptual fill-in-the-blank hint for the learner.',
 		'',
 		'RULES:',
-		'- Output exactly one sentence.',
-		'- Keep it conceptual; do not mention exact identifiers from the code.',
-		'- Do not reveal the answer.',
+		'- Output exactly one sentence ending with a period.',
+		'- Use this structure: "Focus on how ____ affects ____ before ____."',
+		'- Keep the blanks behavior-focused and concept-level (condition, fallback path, output, state).',
 		'',
 		'Code:',
 		code,

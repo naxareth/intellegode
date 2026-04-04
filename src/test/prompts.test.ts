@@ -27,10 +27,10 @@ suite('Prompt Builders', () => {
 
 	test('buildHintPrompt enforces conceptual-only hint', () => {
 		const prompt = buildHintPrompt('function a() {}', 'What does this do?');
-		assert.ok(prompt.includes('Write one conceptual hint for the learner.'));
-		assert.ok(prompt.includes('- Output exactly one sentence.'));
-		assert.ok(prompt.includes('- Keep it conceptual; do not mention exact identifiers from the code.'));
-		assert.ok(prompt.includes('- Do not reveal the answer.'));
+		assert.ok(prompt.includes('Write one conceptual fill-in-the-blank hint for the learner.'));
+		assert.ok(prompt.includes('- Output exactly one sentence ending with a period.'));
+		assert.ok(prompt.includes('- Use this structure: "Focus on how ____ affects ____ before ____."'));
+		assert.ok(prompt.includes('- Keep the blanks behavior-focused and concept-level'));
 	});
 
 	test('buildEvaluatePrompt requests explanation-only output', () => {

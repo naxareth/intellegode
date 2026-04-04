@@ -300,6 +300,11 @@ function collectCodeSignals(code: string): CodeSignals {
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
+    const staticHint = buildFallbackHint(code, question);
+    if (preferStaticHint(staticHint)) {
+        return staticHint;
+    }
+
     const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS, QUESTION_HINT_NUM_CTX);
     const normalizedFirst = normalizeHintOutput(first);
     if (normalizedFirst) {
@@ -320,6 +325,10 @@ export async function generateHint(code: string, question: string, ollamaCaller:
 
     console.warn('Raw LLM Attempt:', first, repaired);
     return buildFallbackHint(code, question);
+}
+
+function preferStaticHint(hint: string): boolean {
+    return hint.trim().length > 0;
 }
 
 export async function evaluateAnswer(
@@ -569,12 +578,11 @@ function buildFallbackHint(code: string, question: string): string {
 
 function buildHintRepairPrompt(rawOutput: string, question: string): string {
     return [
-        'Rewrite this into exactly one concise conceptual hint for the learner.',
+        'Rewrite this into exactly one concise conceptual fill-in-the-blank hint for the learner.',
         'STRICT RULES:',
-        '- One sentence only.',
-        '- Keep it conceptual; do not mention exact variable, function, API, or table names.',
-        '- Do not reveal the answer.',
-        '- Keep it directly relevant to the question context.',
+        '- One sentence only, ending with a period.',
+        '- Use this structure: "Focus on how ____ affects ____ before ____."',
+        '- Keep the blanks behavior-focused and directly relevant to the question context.',
         '',
         'Question context:',
         question,

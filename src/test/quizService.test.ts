@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import {
 	evaluateAnswer,
+	generateHint,
 	generateQuizQuestion,
 	isContextuallyRelevant,
 	isValidExplanationOutput,
@@ -34,6 +35,26 @@ suite('Quiz Service', () => {
 		const raw = 'Focus on how data is validated before processing begins, then notice how each step builds on the previous one so the logic can safely continue through the workflow without breaking later operations.';
 		const normalized = normalizeHintOutput(raw);
 		assert.strictEqual(normalized, raw);
+	});
+
+	test('generateHint prioritizes static hint patterns before LLM output', async () => {
+		let llmCalls = 0;
+		const fakeCaller = async (): Promise<string> => {
+			llmCalls += 1;
+			return 'Focus on how fallback behavior affects output before return.';
+		};
+
+		const code = [
+			'try {',
+			'  return response.data;',
+			'} catch (error) {',
+			'  return [];',
+			'}'
+		].join('\n');
+		const hint = await generateHint(code, 'What failure path is used when the request breaks?', fakeCaller);
+
+		assert.ok(hint.includes('fallback'));
+		assert.strictEqual(llmCalls, 0);
 	});
 
 	test('normalizeQuizQuestionOutput extracts a clean question from malformed output', () => {
