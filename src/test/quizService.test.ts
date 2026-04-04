@@ -11,11 +11,11 @@ import {
 } from '../quizService';
 
 suite('Quiz Service', () => {
-	test('normalizeExplanationOutput flattens lines for valid output', () => {
+	test('normalizeExplanationOutput preserves newlines for valid output', () => {
 		const normalized = normalizeExplanationOutput('This check controls access to the action.\nIt prevents unauthorized users from executing the protected logic.');
 		assert.strictEqual(
 			normalized,
-			'This check controls access to the action. It prevents unauthorized users from executing the protected logic.'
+			'This check controls access to the action.\nIt prevents unauthorized users from executing the protected logic.'
 		);
 	});
 
