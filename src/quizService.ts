@@ -68,6 +68,19 @@ export async function generateQuizQuestion(
             seenQuestions.push(normalizedFirst);
         }
 
+        const normalizedPreviousFirst = normalizeQuizQuestionOutput(lastFirst);
+        const normalizedPreviousRepaired = normalizeQuizQuestionOutput(lastRepaired);
+        if (
+            normalizedPreviousFirst &&
+            normalizedPreviousRepaired &&
+            normalizeQuestionForComparison(normalizedPreviousFirst) === normalizeQuestionForComparison(normalizedPreviousRepaired)
+        ) {
+            console.warn(
+                `[INTELLEGODE][QUESTION REJECT] skipping repair because previous first and repaired outputs were duplicates: ${normalizedPreviousFirst}`
+            );
+            break;
+        }
+
         const repaired = await ollamaCaller(
             buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, seenQuestions),
             QUIZ_MODEL,
@@ -91,6 +104,17 @@ export async function generateQuizQuestion(
 
         if (normalizedRepaired) {
             seenQuestions.push(normalizedRepaired);
+        }
+
+        if (
+            normalizedFirst &&
+            normalizedRepaired &&
+            normalizeQuestionForComparison(normalizedFirst) === normalizeQuestionForComparison(normalizedRepaired)
+        ) {
+            console.warn(
+                `[INTELLEGODE][QUESTION REJECT] first and repaired outputs matched after normalization: ${normalizedFirst}`
+            );
+            break;
         }
     }
 
@@ -181,6 +205,9 @@ function buildFallbackQuestion(selectedCode: string, recentQuestions: string[], 
     }
 
     candidates.push(
+        'What condition in this code determines which path the logic takes?',
+        'What does this code do differently when the main check fails?',
+        'Why does this code need to handle both the success and failure case separately?',
         'What is the most important operation in this highlighted snippet, and why is it necessary for the final outcome?',
         'If this snippet were removed, what concrete behavior would break in the surrounding flow?',
         'How do the core steps in this snippet work together to produce a reliable result?'
@@ -388,23 +415,14 @@ function isQuestionGroundedInSnippet(question: string, selectedCode: string): bo
     }
 
     let overlapCount = 0;
-    const foreignIdentifiers: string[] = [];
 
     for (const identifier of questionIdentifiers) {
         if (snippetIdentifiers.has(identifier)) {
             overlapCount += 1;
-        } else {
-            foreignIdentifiers.push(identifier);
         }
     }
 
     if (overlapCount === 0) {
-        return false;
-    }
-
-    // If a question references more out-of-snippet identifiers than in-snippet identifiers,
-    // it is likely drifting into unrelated file context.
-    if (foreignIdentifiers.length > overlapCount) {
         return false;
     }
 
@@ -419,8 +437,7 @@ function isLikelyGenericQuestion(question: string): boolean {
         lowered.startsWith('what is the purpose of this code') ||
         lowered.startsWith('what is this code doing') ||
         lowered.includes('default value') ||
-        lowered.includes('parameter name') ||
-        lowered.includes('what is the')
+        lowered.includes('parameter name')
     );
 }
 

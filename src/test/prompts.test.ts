@@ -9,10 +9,10 @@ suite('Prompt Builders', () => {
 		assert.ok(prompt.includes('- Output ONLY one question and nothing else.'));
 		assert.ok(prompt.includes('- The question must end with a question mark.'));
 		assert.ok(prompt.includes('- Mention one exact identifier from the snippet'));
-		assert.ok(prompt.includes('- Never ask about default values, parameter names, or type annotations'));
+		assert.ok(prompt.includes('- Focus on behavior, purpose, control flow, or consequence within this snippet.'));
 		assert.ok(prompt.includes('BAD examples (do not generate these):'));
-		assert.ok(prompt.includes('- What is the default value of X? (asks about syntax, not behavior)'));
-		assert.ok(prompt.includes('- What is the parameter name for X? (asks about naming, not comprehension)'));
+		assert.ok(prompt.includes('- What does this function do? (too broad)'));
+		assert.ok(prompt.includes('- What language feature is used here? (syntax question, not comprehension)'));
 	});
 
 	test('buildQuizQuestionPrompt includes anti-repeat list when provided', () => {
