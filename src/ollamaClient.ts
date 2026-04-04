@@ -1,10 +1,11 @@
-import { OllamaGenerateResponse } from './types';
+import { OllamaChatResponse } from './types';
 
-const OLLAMA_URL = 'http://localhost:11434/api/generate';
+const OLLAMA_URL = 'http://localhost:11434/api/chat';
 const OLLAMA_TAGS_URL = 'http://localhost:11434/api/tags';
 const DEFAULT_OLLAMA_MODEL = 'qwen3.5:4b';
 const PREFERRED_FALLBACK_MODELS = ['qwen3.5:4b', 'qwen3:4b', 'qwen2.5:3b'];
 const DEFAULT_NUM_CTX = 4096;
+const OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS = Number.parseInt(process.env.INTELLEGODE_OLLAMA_REQUEST_TIMEOUT_MS ?? '0', 10);
 
 type OllamaTagsResponse = {
 	models?: Array<{ name?: string }>;
@@ -69,17 +70,31 @@ function pickFallbackModel(requestedModel: string, availableModels: string[]): s
 	return null;
 }
 
+function resolveRequestTimeoutMs(): number | null {
+	if (Number.isFinite(OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS) && OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS > 0) {
+		return OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS;
+	}
+
+	return null;
+}
+
 async function generateWithModel(
 	prompt: string,
 	model: string,
-	maxTokens: number,
-	timeoutMs: number,
+	_maxTokens: number,
+	_timeoutMs: number,
 	generateOptions: GenerateOptions = {}
 ): Promise<string> {
 	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+	const requestTimeoutMs = resolveRequestTimeoutMs();
+	const timeout = requestTimeoutMs ? setTimeout(() => controller.abort(), requestTimeoutMs) : null;
 	const shouldForceCpu = generateOptions.forceCpu || process.env.INTELLEGODE_OLLAMA_FORCE_CPU === '1';
 	const numCtx = generateOptions.numCtx ?? (generateOptions.reduceContext ? 1024 : DEFAULT_NUM_CTX);
+	const startedAt = Date.now();
+
+	console.warn(
+		`[INTELLEGODE][OLLAMA REQUEST][${model}] promptChars=${prompt.length} numCtx=${numCtx} stream=true timeoutMs=${requestTimeoutMs ?? 'none'} forceCpu=${shouldForceCpu}`
+	);
 
 	try {
 		const response = await fetch(OLLAMA_URL, {
@@ -88,17 +103,19 @@ async function generateWithModel(
 			signal: controller.signal,
 			body: JSON.stringify({
 				model,
-				prompt,
+				think: false,
+				messages: [{ role: 'system', content: 'You are a fast API. Do not output thinking processes or internal monologues. Provide only the final answer.' }, { role: 'user', content: prompt }],
 				options: {
-					num_predict: maxTokens,
 					temperature: 0.2,
 					num_ctx: numCtx,
 					...(shouldForceCpu ? { num_gpu: 0 } : {})
 				},
-				stream: false,
+				stream: true,
 				keep_alive: '10m'
 			})
 		});
+
+		console.warn(`[INTELLEGODE][OLLAMA RESPONSE][${model}] status=${response.status} ok=${response.ok}`);
 
 		if (!response.ok) {
 			let detail = '';
@@ -111,14 +128,82 @@ async function generateWithModel(
 			throw new Error(`Ollama returned ${response.status} ${response.statusText}${suffix}`);
 		}
 
-		const data = (await response.json()) as OllamaGenerateResponse;
+		const rawContent = await readStreamingChatResponse(response, model);
+		console.warn(`[INTELLEGODE][OLLAMA RAW][${model}]`, rawContent);
+		console.warn(`[INTELLEGODE][OLLAMA DONE][${model}] durationMs=${Date.now() - startedAt} chars=${rawContent.length}`);
+		return rawContent.trim();
+	} catch (error) {
+		if (error instanceof Error && error.name === 'AbortError') {
+			throw new Error(`Ollama chat request timed out after ${requestTimeoutMs ?? 'unknown'}ms for model '${model}'.`);
+		}
+
+		throw error;
+	} finally {
+		if (timeout) {
+			clearTimeout(timeout);
+		}
+	}
+}
+
+async function readStreamingChatResponse(response: Response, model: string): Promise<string> {
+	if (!response.body) {
+		throw new Error(`Ollama response body is empty for model '${model}'.`);
+	}
+
+	const decoder = new TextDecoder();
+	const reader = response.body.getReader();
+	let buffer = '';
+	let combined = '';
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) {
+			break;
+		}
+
+		buffer += decoder.decode(value, { stream: true });
+		const lines = buffer.split('\n');
+		buffer = lines.pop() ?? '';
+
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed) {
+				continue;
+			}
+
+			const data = parseStreamingLine(trimmed, model);
+			if (data.error) {
+				throw new Error(data.error);
+			}
+
+			const chunk = data.message?.content ?? '';
+			if (chunk) {
+				combined += chunk;
+			}
+		}
+	}
+
+	const trailing = buffer.trim();
+	if (trailing) {
+		const data = parseStreamingLine(trailing, model);
 		if (data.error) {
 			throw new Error(data.error);
 		}
 
-		return data.response?.trim() ?? '';
-	} finally {
-		clearTimeout(timeout);
+		const chunk = data.message?.content ?? '';
+		if (chunk) {
+			combined += chunk;
+		}
+	}
+
+	return combined;
+}
+
+function parseStreamingLine(line: string, model: string): OllamaChatResponse {
+	try {
+		return JSON.parse(line) as OllamaChatResponse;
+	} catch {
+		throw new Error(`Failed to parse Ollama streaming line for model '${model}': ${line.slice(0, 200)}`);
 	}
 }
 

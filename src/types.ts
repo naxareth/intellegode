@@ -3,6 +3,13 @@ export type OllamaGenerateResponse = {
 	error?: string;
 };
 
+export type OllamaChatResponse = {
+	message?: {
+		content?: string;
+	};
+	error?: string;
+};
+
 export type QuizWebviewMessage =
 	| { command: 'submitAnswer'; answer?: string }
 	| { command: 'requestHint' }
