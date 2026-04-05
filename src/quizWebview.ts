@@ -4,7 +4,8 @@ export function getQuizWebviewHtml(
 	webview: vscode.Webview,
 	extensionUri: vscode.Uri,
 	question: string,
-	showSnippetLengthWarning: boolean = false
+  showSnippetLengthWarning: boolean = false,
+  historyLoadedCount: number = 0
 ): string {
 	const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'styles.css'));
 	const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'main.js'));
@@ -32,6 +33,8 @@ export function getQuizWebviewHtml(
     <div class="logo">ig</div>
     <span class="brand">INTELLEGODE</span>
   </div>
+
+  <div class="history-badge" id="historyBadge">History loaded: <span id="historyCount">${historyLoadedCount}</span></div>
 
   ${showSnippetLengthWarning ? '<div class="selection-tip">Tip: For best results, highlight a single function or small block — not the entire file.</div>' : ''}
 

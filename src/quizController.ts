@@ -25,13 +25,20 @@ export async function startQuizSession(
 	const selectionKey = normalizeSelectionKey(selectedCode);
 	const selectionHistory = recentQuestionsBySelection[selectionKey] ?? [];
 	const askedQuestions: string[] = [...selectionHistory, ...globalRecentQuestions].slice(-12);
+	const historyLoadedCount = askedQuestions.length;
 	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
 	askedQuestions.push(currentQuestion);
 	await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 	let gotItCount = 0;
 	let missedItCount = 0;
 	const showSnippetLengthWarning = selectedCode.trim().length > 800;
-	panel.webview.html = getQuizWebviewHtml(panel.webview, context.extensionUri, currentQuestion, showSnippetLengthWarning);
+	panel.webview.html = getQuizWebviewHtml(
+		panel.webview,
+		context.extensionUri,
+		currentQuestion,
+		showSnippetLengthWarning,
+		historyLoadedCount
+	);
 
 	// Route webview events to the quiz service and return UI updates to the panel.
 	panel.webview.onDidReceiveMessage(async (message: QuizWebviewMessage) => {
@@ -86,6 +93,7 @@ export async function startQuizSession(
 				}
 				await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 				panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
+				panel.webview.postMessage({ command: 'updateHistoryCount', count: askedQuestions.length });
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 				panel.webview.postMessage({
@@ -105,6 +113,7 @@ export async function startQuizSession(
 			askedQuestions.push(currentQuestion);
 			await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 			panel.webview.postMessage({ command: 'resetQuiz' });
+			panel.webview.postMessage({ command: 'updateHistoryCount', count: askedQuestions.length });
 			panel.webview.postMessage({
 				command: 'showSelfGrade',
 				result: 'reset',

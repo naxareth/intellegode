@@ -49,6 +49,7 @@ var progressGotIt = document.getElementById('progressGotIt');
 var progressMissedIt = document.getElementById('progressMissedIt');
 var statGotIt = document.getElementById('statGotIt');
 var statMissedIt = document.getElementById('statMissedIt');
+var historyCount = document.getElementById('historyCount');
 
 function collapseInput() {
   if (inputSection) inputSection.classList.add('collapsed');
@@ -231,6 +232,12 @@ window.addEventListener('message', function (event) {
   if (msg.command === 'showHint') {
     if (hintText) hintText.textContent = msg.hint || '';
     if (hintBox) hintBox.classList.add('visible');
+  }
+
+  if (msg.command === 'updateHistoryCount') {
+    if (historyCount) {
+      historyCount.textContent = String(Number(msg.count || 0));
+    }
   }
 
   if (msg.command === 'showResult') {
