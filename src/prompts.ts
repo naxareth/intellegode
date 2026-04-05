@@ -117,8 +117,13 @@ function buildAvoidQuestionLines(avoidQuestions: string[]): string[] {
 		return [];
 	}
 
+	const emphasisLine = cleaned.length >= 3
+		? ['IMPORTANT: The questions listed above have already been asked. You MUST generate a completely different question focusing on a different part of the code or a different behavior.']
+		: [];
+
 	return [
 		'Avoid repeating any of these existing questions:',
-		...cleaned.map((question) => `- ${question}`)
+		...cleaned.map((question) => `- ${question}`),
+		...emphasisLine
 	];
 }

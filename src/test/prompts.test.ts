@@ -25,6 +25,15 @@ suite('Prompt Builders', () => {
 		assert.ok(prompt.includes('- What is the loop doing each iteration?'));
 	});
 
+	test('buildQuizQuestionPrompt adds urgent anti-repeat instruction with 3+ prior questions', () => {
+		const prompt = buildQuizQuestionPrompt('const x = 1;', 'const x = 1;', [
+			'Question one?',
+			'Question two?',
+			'Question three?'
+		]);
+		assert.ok(prompt.includes('IMPORTANT: The questions listed above have already been asked. You MUST generate a completely different question focusing on a different part of the code or a different behavior.'));
+	});
+
 	test('buildHintPrompt enforces conceptual-only hint', () => {
 		const prompt = buildHintPrompt('function a() {}', 'What does this do?');
 		assert.ok(prompt.includes('Write one conceptual fill-in-the-blank hint for the learner.'));

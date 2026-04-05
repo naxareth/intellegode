@@ -15,7 +15,7 @@ const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 45000;
 const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 60000;
 const QUIZ_MODEL = 'qwen3.5:4b';
 const MAX_QUESTION_ATTEMPTS = 2;
-const QUESTION_HISTORY_WINDOW = 8;
+const QUESTION_HISTORY_WINDOW = 4;
 const MAX_SELECTED_SNIPPET_CHARS = 2000;
 const MAX_FILE_CONTEXT_CHARS = 1500;
 const QUESTION_HINT_NUM_CTX = 3072;
@@ -64,6 +64,12 @@ export async function generateQuizQuestion(
             return normalizedFirst;
         }
 
+        if (normalizedFirst && firstIsRepeated && firstIsGrounded) {
+            seenQuestions.push(normalizedFirst);
+            console.warn(`[INTELLEGODE][QUESTION FINAL][repeated-but-grounded] ${normalizedFirst}`);
+            return normalizedFirst;
+        }
+
         if (normalizedFirst && (firstIsRepeated || !firstIsGrounded)) {
             console.warn(
                 `[INTELLEGODE][QUESTION REJECT][first] repeated=${firstIsRepeated} grounded=${firstIsGrounded} question=${normalizedFirst}`
@@ -103,6 +109,12 @@ export async function generateQuizQuestion(
         if (normalizedRepaired && !repairedIsRepeated && repairedIsGrounded) {
             seenQuestions.push(normalizedRepaired);
             console.warn(`[INTELLEGODE][QUESTION FINAL][repair] ${normalizedRepaired}`);
+            return normalizedRepaired;
+        }
+
+        if (normalizedRepaired && repairedIsRepeated && repairedIsGrounded) {
+            seenQuestions.push(normalizedRepaired);
+            console.warn(`[INTELLEGODE][QUESTION FINAL][repeated-but-grounded] ${normalizedRepaired}`);
             return normalizedRepaired;
         }
 

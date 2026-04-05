@@ -188,6 +188,26 @@ suite('Quiz Service', () => {
 		assert.strictEqual(calls.length, 1);
 	});
 
+	test('generateQuizQuestion returns repeated-but-grounded question instead of falling back', async () => {
+		const repeatedGrounded = 'How does reasonType decide whether tier2Recommendations is updated before the final sort?';
+		const calls: string[] = [];
+		const fakeCaller = async (prompt: string): Promise<string> => {
+			calls.push(prompt);
+			return repeatedGrounded;
+		};
+		const snippet = [
+			'let tier2Recommendations = [];',
+			'const reasonType = score > 70 ? "direct" : "fallback";',
+			'if (reasonType === "direct") tier2Recommendations.push(course);',
+			'tier2Recommendations.sort((a, b) => b.score - a.score);'
+		].join('\n');
+
+		const question = await generateQuizQuestion(snippet, snippet, fakeCaller, [repeatedGrounded]);
+
+		assert.strictEqual(question, repeatedGrounded);
+		assert.strictEqual(calls.length, 1);
+	});
+
 	test('generateQuizQuestion skips extra repair attempts when first and repair normalize identically', async () => {
 		const duplicate = 'How does this code work?';
 		const calls: string[] = [];
