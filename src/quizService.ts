@@ -42,9 +42,11 @@ export async function generateQuizQuestion(
     console.warn(`[INTELLEGODE][HIGHLIGHTED CODE]\n${selectedSnippetContext}`);
 
     for (let attempt = 0; attempt < MAX_QUESTION_ATTEMPTS; attempt += 1) {
+        const currentAttemptSeen: string[] = [];
+
         // First request can include model cold-start, so keep this timeout more forgiving.
         const first = await ollamaCaller(
-            buildQuizQuestionPrompt(selectedSnippetContext, fileContext, seenQuestions),
+            buildQuizQuestionPrompt(selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen]),
             QUIZ_MODEL,
             60,
             QUIZ_QUESTION_TIMEOUT_MS,
@@ -52,9 +54,12 @@ export async function generateQuizQuestion(
         );
         lastFirst = first;
         const normalizedFirst = normalizeQuizQuestionOutput(first);
-        const firstIsRepeated = normalizedFirst ? isRepeatedQuestion(normalizedFirst, seenQuestions) : false;
+        const firstIsRepeated = normalizedFirst
+            ? isRepeatedQuestion(normalizedFirst, seenQuestions) || isRepeatedQuestion(normalizedFirst, currentAttemptSeen)
+            : false;
         const firstIsGrounded = normalizedFirst ? isQuestionGroundedInSnippet(normalizedFirst, selectedSnippetContext) : false;
         if (normalizedFirst && !firstIsRepeated && firstIsGrounded) {
+            seenQuestions.push(normalizedFirst);
             console.warn(`[INTELLEGODE][QUESTION FINAL][first] ${normalizedFirst}`);
             return normalizedFirst;
         }
@@ -66,7 +71,7 @@ export async function generateQuizQuestion(
         }
 
         if (normalizedFirst) {
-            seenQuestions.push(normalizedFirst);
+            currentAttemptSeen.push(normalizedFirst);
         }
 
         const normalizedPreviousFirst = normalizeQuizQuestionOutput(lastFirst);
@@ -83,7 +88,7 @@ export async function generateQuizQuestion(
         }
 
         const repaired = await ollamaCaller(
-            buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, seenQuestions),
+            buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen]),
             QUIZ_MODEL,
             80,
             QUIZ_QUESTION_TIMEOUT_MS,
@@ -91,9 +96,12 @@ export async function generateQuizQuestion(
         );
         lastRepaired = repaired;
         const normalizedRepaired = normalizeQuizQuestionOutput(repaired);
-        const repairedIsRepeated = normalizedRepaired ? isRepeatedQuestion(normalizedRepaired, seenQuestions) : false;
+        const repairedIsRepeated = normalizedRepaired
+            ? isRepeatedQuestion(normalizedRepaired, seenQuestions) || isRepeatedQuestion(normalizedRepaired, currentAttemptSeen)
+            : false;
         const repairedIsGrounded = normalizedRepaired ? isQuestionGroundedInSnippet(normalizedRepaired, selectedSnippetContext) : false;
         if (normalizedRepaired && !repairedIsRepeated && repairedIsGrounded) {
+            seenQuestions.push(normalizedRepaired);
             console.warn(`[INTELLEGODE][QUESTION FINAL][repair] ${normalizedRepaired}`);
             return normalizedRepaired;
         }
@@ -105,7 +113,7 @@ export async function generateQuizQuestion(
         }
 
         if (normalizedRepaired) {
-            seenQuestions.push(normalizedRepaired);
+            currentAttemptSeen.push(normalizedRepaired);
         }
 
         if (
