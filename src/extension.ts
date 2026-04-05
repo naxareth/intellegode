@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
 				{ enableScripts: true }
 			);
 
-			await startQuizSession(panel, selectedCode, fileCode, EVALUATOR_MODEL);
+			await startQuizSession(panel, selectedCode, fileCode, EVALUATOR_MODEL, context);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 			vscode.window.showErrorMessage(`Intellegode failed: ${errorMessage}`);
