@@ -2,6 +2,16 @@ import * as vscode from 'vscode';
 import { startQuizSession } from './quizController';
 
 const EVALUATOR_MODEL = 'qwen3.5:4b';
+const NON_CODE_LANGUAGE_IDS = new Set([
+	'markdown',
+	'plaintext',
+	'scminput',
+	'git-commit',
+	'git-rebase',
+	'log',
+	'csv',
+	'tsv'
+]);
 
 // This method is called when your extension is activated.
 export function activate(context: vscode.ExtensionContext) {
@@ -11,6 +21,12 @@ export function activate(context: vscode.ExtensionContext) {
 		const editor = vscode.window.activeTextEditor;
 		if (!editor) {
 			vscode.window.showWarningMessage('Open a file and select some code first.');
+			return;
+		}
+
+		const languageId = editor.document.languageId;
+		if (NON_CODE_LANGUAGE_IDS.has(languageId)) {
+			vscode.window.showWarningMessage('Intellegode works best with source code files.');
 			return;
 		}
 
