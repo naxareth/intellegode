@@ -20,6 +20,7 @@ suite('Prompt Builders', () => {
 			'What condition decides which branch runs?',
 			'What is the loop doing each iteration?'
 		]);
+		assert.ok(prompt.includes('You have already asked questions about this code. Focus on a DIFFERENT behavior, condition, or operation than the ones listed below. Look at a different part of the snippet.'));
 		assert.ok(prompt.includes('Avoid repeating any of these existing questions:'));
 		assert.ok(prompt.includes('- What condition decides which branch runs?'));
 		assert.ok(prompt.includes('- What is the loop doing each iteration?'));

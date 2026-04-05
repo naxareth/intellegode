@@ -28,9 +28,9 @@ export async function generateQuizQuestion(
     ollamaCaller: OllamaCaller = callOllama,
     recentQuestions: string[] = []
 ): Promise<string> {
-    const selectedSnippetContext = prepareContext(selectedCode, MAX_SELECTED_SNIPPET_CHARS);
-    const fileContext = prepareContext(fileCodeContext || selectedCode, MAX_FILE_CONTEXT_CHARS);
     const seenQuestions = recentQuestions.slice(-QUESTION_HISTORY_WINDOW);
+    const selectedSnippetContext = prepareContext(selectedCode, MAX_SELECTED_SNIPPET_CHARS, seenQuestions.length);
+    const fileContext = prepareContext(fileCodeContext || selectedCode, MAX_FILE_CONTEXT_CHARS, seenQuestions.length);
     const focusMode = chooseQuestionFocusMode(seenQuestions);
     let lastFirst = '';
     let lastRepaired = '';
@@ -280,16 +280,33 @@ function pickNonRepeatedQuestion(candidates: string[], recentQuestions: string[]
     return candidates[0]!;
 }
 
-function prepareContext(source: string, maxChars: number): string {
+function prepareContext(source: string, maxChars: number, recentQuestionCount: number): string {
     const trimmed = source.trim();
     if (trimmed.length <= maxChars) {
         return trimmed;
     }
 
-    const half = Math.floor((maxChars - 9) / 2);
-    const head = trimmed.slice(0, half).trimEnd();
-    const tail = trimmed.slice(-half).trimStart();
-    return `${head}\n\n...\n\n${tail}`;
+    const separator = '\n\n...\n\n';
+    const available = maxChars - separator.length;
+    if (available <= 4) {
+        return trimmed.slice(0, maxChars).trim();
+    }
+
+    const segmentLength = Math.max(2, Math.floor(available / 2));
+    const head = trimmed.slice(0, segmentLength).trimEnd();
+    const tail = trimmed.slice(-segmentLength).trimStart();
+    const middleStart = Math.max(0, Math.floor(trimmed.length / 2) - Math.floor(segmentLength / 2));
+    const middle = trimmed.slice(middleStart, middleStart + segmentLength).trim();
+
+    if (recentQuestionCount <= 1) {
+        return `${head}${separator}${tail}`;
+    }
+
+    if (recentQuestionCount <= 3) {
+        return `${head}${separator}${middle}`;
+    }
+
+    return `${middle}${separator}${tail}`;
 }
 
 function hashString(value: string): number {

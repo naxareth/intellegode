@@ -15,6 +15,11 @@ export function buildQuizQuestionPrompt(
 		'BAD examples (do not generate these):',
 		'- What does this function do? (too broad)',
 		'- What language feature is used here? (syntax question, not comprehension)',
+		...(avoidQuestions.length >= 2
+			? [
+				'You have already asked questions about this code. Focus on a DIFFERENT behavior, condition, or operation than the ones listed below. Look at a different part of the snippet.'
+			]
+			: []),
 		...buildAvoidQuestionLines(avoidQuestions),
 		'',
 		'Selected snippet:',
