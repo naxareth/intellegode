@@ -55,6 +55,7 @@ export async function generateQuizQuestion(
         const firstIsRepeated = normalizedFirst ? isRepeatedQuestion(normalizedFirst, seenQuestions) : false;
         const firstIsGrounded = normalizedFirst ? isQuestionGroundedInSnippet(normalizedFirst, selectedSnippetContext) : false;
         if (normalizedFirst && !firstIsRepeated && firstIsGrounded) {
+            console.warn(`[INTELLEGODE][QUESTION FINAL][first] ${normalizedFirst}`);
             return normalizedFirst;
         }
 
@@ -93,6 +94,7 @@ export async function generateQuizQuestion(
         const repairedIsRepeated = normalizedRepaired ? isRepeatedQuestion(normalizedRepaired, seenQuestions) : false;
         const repairedIsGrounded = normalizedRepaired ? isQuestionGroundedInSnippet(normalizedRepaired, selectedSnippetContext) : false;
         if (normalizedRepaired && !repairedIsRepeated && repairedIsGrounded) {
+            console.warn(`[INTELLEGODE][QUESTION FINAL][repair] ${normalizedRepaired}`);
             return normalizedRepaired;
         }
 
@@ -118,8 +120,10 @@ export async function generateQuizQuestion(
         }
     }
 
-    console.warn('Raw LLM Attempt:', lastFirst, lastRepaired);
-    return buildFallbackQuestion(selectedSnippetContext, seenQuestions, focusMode);
+    const fallbackQuestion = buildFallbackQuestion(selectedSnippetContext, seenQuestions, focusMode);
+    console.warn('[INTELLEGODE][QUESTION FALLBACK][raw rejected] first=', lastFirst, 'repair=', lastRepaired);
+    console.warn(`[INTELLEGODE][QUESTION FINAL][fallback] ${fallbackQuestion}`);
+    return fallbackQuestion;
 }
 
 export function normalizeQuizQuestionOutput(raw: string): string | null {
