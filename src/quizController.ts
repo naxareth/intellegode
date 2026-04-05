@@ -31,7 +31,7 @@ export async function startQuizSession(
 	let gotItCount = 0;
 	let missedItCount = 0;
 	const showSnippetLengthWarning = selectedCode.trim().length > 800;
-	panel.webview.html = getQuizWebviewHtml(currentQuestion, showSnippetLengthWarning);
+	panel.webview.html = getQuizWebviewHtml(panel.webview, context.extensionUri, currentQuestion, showSnippetLengthWarning);
 
 	// Route webview events to the quiz service and return UI updates to the panel.
 	panel.webview.onDidReceiveMessage(async (message: QuizWebviewMessage) => {
