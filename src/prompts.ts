@@ -15,6 +15,11 @@ export function buildQuizQuestionPrompt(
 		'BAD examples (do not generate these):',
 		'- What does this function do? (too broad)',
 		'- What language feature is used here? (syntax question, not comprehension)',
+		...(avoidQuestions.length >= 2
+			? [
+				'You have already asked questions about this code. Focus on a DIFFERENT behavior, condition, or operation than the ones listed below. Look at a different part of the snippet.'
+			]
+			: []),
 		...buildAvoidQuestionLines(avoidQuestions),
 		'',
 		'Selected snippet:',
@@ -57,12 +62,12 @@ export function buildQuizQuestionRepairPrompt(
 
 export function buildHintPrompt(code: string, question: string): string {
 	return [
-		'Write one conceptual hint for the learner.',
+		'Write one conceptual fill-in-the-blank hint for the learner.',
 		'',
 		'RULES:',
-		'- Output exactly one sentence.',
-		'- Keep it conceptual; do not mention exact identifiers from the code.',
-		'- Do not reveal the answer.',
+		'- Output exactly one sentence ending with a period.',
+		'- Use this structure: "Focus on how ____ affects ____ before ____."',
+		'- Keep the blanks behavior-focused and concept-level (condition, fallback path, output, state).',
 		'',
 		'Code:',
 		code,
@@ -117,8 +122,13 @@ function buildAvoidQuestionLines(avoidQuestions: string[]): string[] {
 		return [];
 	}
 
+	const emphasisLine = cleaned.length >= 3
+		? ['IMPORTANT: The questions listed above have already been asked. You MUST generate a completely different question focusing on a different part of the code or a different behavior.']
+		: [];
+
 	return [
 		'Avoid repeating any of these existing questions:',
-		...cleaned.map((question) => `- ${question}`)
+		...cleaned.map((question) => `- ${question}`),
+		...emphasisLine
 	];
 }

@@ -20,17 +20,27 @@ suite('Prompt Builders', () => {
 			'What condition decides which branch runs?',
 			'What is the loop doing each iteration?'
 		]);
+		assert.ok(prompt.includes('You have already asked questions about this code. Focus on a DIFFERENT behavior, condition, or operation than the ones listed below. Look at a different part of the snippet.'));
 		assert.ok(prompt.includes('Avoid repeating any of these existing questions:'));
 		assert.ok(prompt.includes('- What condition decides which branch runs?'));
 		assert.ok(prompt.includes('- What is the loop doing each iteration?'));
 	});
 
+	test('buildQuizQuestionPrompt adds urgent anti-repeat instruction with 3+ prior questions', () => {
+		const prompt = buildQuizQuestionPrompt('const x = 1;', 'const x = 1;', [
+			'Question one?',
+			'Question two?',
+			'Question three?'
+		]);
+		assert.ok(prompt.includes('IMPORTANT: The questions listed above have already been asked. You MUST generate a completely different question focusing on a different part of the code or a different behavior.'));
+	});
+
 	test('buildHintPrompt enforces conceptual-only hint', () => {
 		const prompt = buildHintPrompt('function a() {}', 'What does this do?');
-		assert.ok(prompt.includes('Write one conceptual hint for the learner.'));
-		assert.ok(prompt.includes('- Output exactly one sentence.'));
-		assert.ok(prompt.includes('- Keep it conceptual; do not mention exact identifiers from the code.'));
-		assert.ok(prompt.includes('- Do not reveal the answer.'));
+		assert.ok(prompt.includes('Write one conceptual fill-in-the-blank hint for the learner.'));
+		assert.ok(prompt.includes('- Output exactly one sentence ending with a period.'));
+		assert.ok(prompt.includes('- Use this structure: "Focus on how ____ affects ____ before ____."'));
+		assert.ok(prompt.includes('- Keep the blanks behavior-focused and concept-level'));
 	});
 
 	test('buildEvaluatePrompt requests explanation-only output', () => {

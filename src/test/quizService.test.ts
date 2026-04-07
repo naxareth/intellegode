@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import {
 	evaluateAnswer,
+	generateHint,
 	generateQuizQuestion,
 	isContextuallyRelevant,
 	isValidExplanationOutput,
@@ -10,11 +11,11 @@ import {
 } from '../quizService';
 
 suite('Quiz Service', () => {
-	test('normalizeExplanationOutput flattens lines for valid output', () => {
+	test('normalizeExplanationOutput preserves newlines for valid output', () => {
 		const normalized = normalizeExplanationOutput('This check controls access to the action.\nIt prevents unauthorized users from executing the protected logic.');
 		assert.strictEqual(
 			normalized,
-			'This check controls access to the action. It prevents unauthorized users from executing the protected logic.'
+			'This check controls access to the action.\nIt prevents unauthorized users from executing the protected logic.'
 		);
 	});
 
@@ -34,6 +35,26 @@ suite('Quiz Service', () => {
 		const raw = 'Focus on how data is validated before processing begins, then notice how each step builds on the previous one so the logic can safely continue through the workflow without breaking later operations.';
 		const normalized = normalizeHintOutput(raw);
 		assert.strictEqual(normalized, raw);
+	});
+
+	test('generateHint prioritizes static hint patterns before LLM output', async () => {
+		let llmCalls = 0;
+		const fakeCaller = async (): Promise<string> => {
+			llmCalls += 1;
+			return 'Focus on how fallback behavior affects output before return.';
+		};
+
+		const code = [
+			'try {',
+			'  return response.data;',
+			'} catch (error) {',
+			'  return [];',
+			'}'
+		].join('\n');
+		const hint = await generateHint(code, 'What failure path is used when the request breaks?', fakeCaller);
+
+		assert.ok(hint.includes('fallback'));
+		assert.strictEqual(llmCalls, 0);
 	});
 
 	test('normalizeQuizQuestionOutput extracts a clean question from malformed output', () => {
@@ -164,6 +185,26 @@ suite('Quiz Service', () => {
 
 		const question = await generateQuizQuestion(snippet, snippet, fakeCaller);
 		assert.strictEqual(question, grounded);
+		assert.strictEqual(calls.length, 1);
+	});
+
+	test('generateQuizQuestion returns repeated-but-grounded question instead of falling back', async () => {
+		const repeatedGrounded = 'How does reasonType decide whether tier2Recommendations is updated before the final sort?';
+		const calls: string[] = [];
+		const fakeCaller = async (prompt: string): Promise<string> => {
+			calls.push(prompt);
+			return repeatedGrounded;
+		};
+		const snippet = [
+			'let tier2Recommendations = [];',
+			'const reasonType = score > 70 ? "direct" : "fallback";',
+			'if (reasonType === "direct") tier2Recommendations.push(course);',
+			'tier2Recommendations.sort((a, b) => b.score - a.score);'
+		].join('\n');
+
+		const question = await generateQuizQuestion(snippet, snippet, fakeCaller, [repeatedGrounded]);
+
+		assert.strictEqual(question, repeatedGrounded);
 		assert.strictEqual(calls.length, 1);
 	});
 

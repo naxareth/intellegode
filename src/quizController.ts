@@ -5,25 +5,41 @@ import { getQuizWebviewHtml } from './quizWebview';
 
 const MAX_GLOBAL_QUESTION_MEMORY = 20;
 const MAX_SELECTION_QUESTION_MEMORY = 8;
-const globalRecentQuestions: string[] = [];
-const recentQuestionsBySelection = new Map<string, string[]>();
+const QUESTION_STATE_KEY = 'intellegode.recentQuestions';
+
+type RecentQuestionState = {
+	globalRecentQuestions: string[];
+	recentQuestionsBySelection: Record<string, string[]>;
+};
 
 export async function startQuizSession(
 	panel: vscode.WebviewPanel,
 	selectedCode: string,
 	fileCodeContext: string,
-	evaluatorModel: string
+	evaluatorModel: string,
+	context: vscode.ExtensionContext
 ): Promise<void> {
+	const questionState = loadRecentQuestionState(context);
+	const globalRecentQuestions = questionState.globalRecentQuestions;
+	const recentQuestionsBySelection = questionState.recentQuestionsBySelection;
 	const selectionKey = normalizeSelectionKey(selectedCode);
-	const selectionHistory = recentQuestionsBySelection.get(selectionKey) ?? [];
+	const selectionHistory = recentQuestionsBySelection[selectionKey] ?? [];
 	const askedQuestions: string[] = [...selectionHistory, ...globalRecentQuestions].slice(-12);
+	const historyLoadedCount = askedQuestions.length;
 	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
+	console.warn(`[INTELLEGODE][UI QUESTION][initial] ${currentQuestion}`);
 	askedQuestions.push(currentQuestion);
-	recordQuestion(selectionKey, currentQuestion);
+	await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 	let gotItCount = 0;
 	let missedItCount = 0;
 	const showSnippetLengthWarning = selectedCode.trim().length > 800;
-	panel.webview.html = getQuizWebviewHtml(currentQuestion, showSnippetLengthWarning);
+	panel.webview.html = getQuizWebviewHtml(
+		panel.webview,
+		context.extensionUri,
+		currentQuestion,
+		showSnippetLengthWarning,
+		historyLoadedCount
+	);
 
 	// Route webview events to the quiz service and return UI updates to the panel.
 	panel.webview.onDidReceiveMessage(async (message: QuizWebviewMessage) => {
@@ -72,12 +88,14 @@ export async function startQuizSession(
 			panel.webview.postMessage({ command: 'setLoading', loading: true });
 			try {
 				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
+				console.warn(`[INTELLEGODE][UI QUESTION][newQuestion] ${currentQuestion}`);
 				askedQuestions.push(currentQuestion);
 				if (askedQuestions.length > 12) {
 					askedQuestions.splice(0, askedQuestions.length - 12);
 				}
-				recordQuestion(selectionKey, currentQuestion);
+				await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 				panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
+				panel.webview.postMessage({ command: 'updateHistoryCount', count: askedQuestions.length });
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 				panel.webview.postMessage({
@@ -95,8 +113,9 @@ export async function startQuizSession(
 			missedItCount = 0;
 			askedQuestions.length = 0;
 			askedQuestions.push(currentQuestion);
-			recordQuestion(selectionKey, currentQuestion);
+			await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 			panel.webview.postMessage({ command: 'resetQuiz' });
+			panel.webview.postMessage({ command: 'updateHistoryCount', count: askedQuestions.length });
 			panel.webview.postMessage({
 				command: 'showSelfGrade',
 				result: 'reset',
@@ -134,16 +153,51 @@ function normalizeSelectionKey(selectedCode: string): string {
 		.slice(0, 600);
 }
 
-function recordQuestion(selectionKey: string, question: string): void {
+function loadRecentQuestionState(context: vscode.ExtensionContext): RecentQuestionState {
+	const saved = context.workspaceState.get<RecentQuestionState | null>(QUESTION_STATE_KEY, null);
+	const globalRecentQuestions = Array.isArray(saved?.globalRecentQuestions)
+		? saved!.globalRecentQuestions.filter((item) => typeof item === 'string').slice(-MAX_GLOBAL_QUESTION_MEMORY)
+		: [];
+
+	const recentQuestionsBySelection: Record<string, string[]> = {};
+	const savedSelections = saved?.recentQuestionsBySelection ?? {};
+	for (const [key, value] of Object.entries(savedSelections)) {
+		if (!Array.isArray(value)) {
+			continue;
+		}
+
+		recentQuestionsBySelection[key] = value
+			.filter((item) => typeof item === 'string')
+			.slice(-MAX_SELECTION_QUESTION_MEMORY);
+	}
+
+	return {
+		globalRecentQuestions,
+		recentQuestionsBySelection
+	};
+}
+
+async function recordQuestion(
+	selectionKey: string,
+	question: string,
+	context: vscode.ExtensionContext,
+	globalRecentQuestions: string[],
+	recentQuestionsBySelection: Record<string, string[]>
+): Promise<void> {
 	globalRecentQuestions.push(question);
 	if (globalRecentQuestions.length > MAX_GLOBAL_QUESTION_MEMORY) {
 		globalRecentQuestions.splice(0, globalRecentQuestions.length - MAX_GLOBAL_QUESTION_MEMORY);
 	}
 
-	const selectionList = recentQuestionsBySelection.get(selectionKey) ?? [];
+	const selectionList = recentQuestionsBySelection[selectionKey] ?? [];
 	selectionList.push(question);
 	if (selectionList.length > MAX_SELECTION_QUESTION_MEMORY) {
 		selectionList.splice(0, selectionList.length - MAX_SELECTION_QUESTION_MEMORY);
 	}
-	recentQuestionsBySelection.set(selectionKey, selectionList);
+	recentQuestionsBySelection[selectionKey] = selectionList;
+
+	await context.workspaceState.update(QUESTION_STATE_KEY, {
+		globalRecentQuestions,
+		recentQuestionsBySelection
+	} satisfies RecentQuestionState);
 }

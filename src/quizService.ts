@@ -15,7 +15,7 @@ const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 45000;
 const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 60000;
 const QUIZ_MODEL = 'qwen3.5:4b';
 const MAX_QUESTION_ATTEMPTS = 2;
-const QUESTION_HISTORY_WINDOW = 8;
+const QUESTION_HISTORY_WINDOW = 4;
 const MAX_SELECTED_SNIPPET_CHARS = 2000;
 const MAX_FILE_CONTEXT_CHARS = 1500;
 const QUESTION_HINT_NUM_CTX = 3072;
@@ -28,9 +28,9 @@ export async function generateQuizQuestion(
     ollamaCaller: OllamaCaller = callOllama,
     recentQuestions: string[] = []
 ): Promise<string> {
-    const selectedSnippetContext = prepareContext(selectedCode, MAX_SELECTED_SNIPPET_CHARS);
-    const fileContext = prepareContext(fileCodeContext || selectedCode, MAX_FILE_CONTEXT_CHARS);
     const seenQuestions = recentQuestions.slice(-QUESTION_HISTORY_WINDOW);
+    const selectedSnippetContext = prepareContext(selectedCode, MAX_SELECTED_SNIPPET_CHARS, seenQuestions.length);
+    const fileContext = prepareContext(fileCodeContext || selectedCode, MAX_FILE_CONTEXT_CHARS, seenQuestions.length);
     const focusMode = chooseQuestionFocusMode(seenQuestions);
     let lastFirst = '';
     let lastRepaired = '';
@@ -42,9 +42,11 @@ export async function generateQuizQuestion(
     console.warn(`[INTELLEGODE][HIGHLIGHTED CODE]\n${selectedSnippetContext}`);
 
     for (let attempt = 0; attempt < MAX_QUESTION_ATTEMPTS; attempt += 1) {
+        const currentAttemptSeen: string[] = [];
+
         // First request can include model cold-start, so keep this timeout more forgiving.
         const first = await ollamaCaller(
-            buildQuizQuestionPrompt(selectedSnippetContext, fileContext, seenQuestions),
+            buildQuizQuestionPrompt(selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen]),
             QUIZ_MODEL,
             60,
             QUIZ_QUESTION_TIMEOUT_MS,
@@ -52,9 +54,19 @@ export async function generateQuizQuestion(
         );
         lastFirst = first;
         const normalizedFirst = normalizeQuizQuestionOutput(first);
-        const firstIsRepeated = normalizedFirst ? isRepeatedQuestion(normalizedFirst, seenQuestions) : false;
+        const firstIsRepeated = normalizedFirst
+            ? isRepeatedQuestion(normalizedFirst, seenQuestions) || isRepeatedQuestion(normalizedFirst, currentAttemptSeen)
+            : false;
         const firstIsGrounded = normalizedFirst ? isQuestionGroundedInSnippet(normalizedFirst, selectedSnippetContext) : false;
         if (normalizedFirst && !firstIsRepeated && firstIsGrounded) {
+            seenQuestions.push(normalizedFirst);
+            console.warn(`[INTELLEGODE][QUESTION FINAL][first] ${normalizedFirst}`);
+            return normalizedFirst;
+        }
+
+        if (normalizedFirst && firstIsRepeated && firstIsGrounded) {
+            seenQuestions.push(normalizedFirst);
+            console.warn(`[INTELLEGODE][QUESTION FINAL][repeated-but-grounded] ${normalizedFirst}`);
             return normalizedFirst;
         }
 
@@ -65,7 +77,7 @@ export async function generateQuizQuestion(
         }
 
         if (normalizedFirst) {
-            seenQuestions.push(normalizedFirst);
+            currentAttemptSeen.push(normalizedFirst);
         }
 
         const normalizedPreviousFirst = normalizeQuizQuestionOutput(lastFirst);
@@ -82,7 +94,7 @@ export async function generateQuizQuestion(
         }
 
         const repaired = await ollamaCaller(
-            buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, seenQuestions),
+            buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen]),
             QUIZ_MODEL,
             80,
             QUIZ_QUESTION_TIMEOUT_MS,
@@ -90,9 +102,19 @@ export async function generateQuizQuestion(
         );
         lastRepaired = repaired;
         const normalizedRepaired = normalizeQuizQuestionOutput(repaired);
-        const repairedIsRepeated = normalizedRepaired ? isRepeatedQuestion(normalizedRepaired, seenQuestions) : false;
+        const repairedIsRepeated = normalizedRepaired
+            ? isRepeatedQuestion(normalizedRepaired, seenQuestions) || isRepeatedQuestion(normalizedRepaired, currentAttemptSeen)
+            : false;
         const repairedIsGrounded = normalizedRepaired ? isQuestionGroundedInSnippet(normalizedRepaired, selectedSnippetContext) : false;
         if (normalizedRepaired && !repairedIsRepeated && repairedIsGrounded) {
+            seenQuestions.push(normalizedRepaired);
+            console.warn(`[INTELLEGODE][QUESTION FINAL][repair] ${normalizedRepaired}`);
+            return normalizedRepaired;
+        }
+
+        if (normalizedRepaired && repairedIsRepeated && repairedIsGrounded) {
+            seenQuestions.push(normalizedRepaired);
+            console.warn(`[INTELLEGODE][QUESTION FINAL][repeated-but-grounded] ${normalizedRepaired}`);
             return normalizedRepaired;
         }
 
@@ -103,7 +125,7 @@ export async function generateQuizQuestion(
         }
 
         if (normalizedRepaired) {
-            seenQuestions.push(normalizedRepaired);
+            currentAttemptSeen.push(normalizedRepaired);
         }
 
         if (
@@ -118,8 +140,10 @@ export async function generateQuizQuestion(
         }
     }
 
-    console.warn('Raw LLM Attempt:', lastFirst, lastRepaired);
-    return buildFallbackQuestion(selectedSnippetContext, seenQuestions, focusMode);
+    const fallbackQuestion = buildFallbackQuestion(selectedSnippetContext, seenQuestions, focusMode);
+    console.warn('[INTELLEGODE][QUESTION FALLBACK][raw rejected] first=', lastFirst, 'repair=', lastRepaired);
+    console.warn(`[INTELLEGODE][QUESTION FINAL][fallback] ${fallbackQuestion}`);
+    return fallbackQuestion;
 }
 
 export function normalizeQuizQuestionOutput(raw: string): string | null {
@@ -256,16 +280,33 @@ function pickNonRepeatedQuestion(candidates: string[], recentQuestions: string[]
     return candidates[0]!;
 }
 
-function prepareContext(source: string, maxChars: number): string {
+function prepareContext(source: string, maxChars: number, recentQuestionCount: number): string {
     const trimmed = source.trim();
     if (trimmed.length <= maxChars) {
         return trimmed;
     }
 
-    const half = Math.floor((maxChars - 9) / 2);
-    const head = trimmed.slice(0, half).trimEnd();
-    const tail = trimmed.slice(-half).trimStart();
-    return `${head}\n\n...\n\n${tail}`;
+    const separator = '\n\n...\n\n';
+    const available = maxChars - separator.length;
+    if (available <= 4) {
+        return trimmed.slice(0, maxChars).trim();
+    }
+
+    const segmentLength = Math.max(2, Math.floor(available / 2));
+    const head = trimmed.slice(0, segmentLength).trimEnd();
+    const tail = trimmed.slice(-segmentLength).trimStart();
+    const middleStart = Math.max(0, Math.floor(trimmed.length / 2) - Math.floor(segmentLength / 2));
+    const middle = trimmed.slice(middleStart, middleStart + segmentLength).trim();
+
+    if (recentQuestionCount <= 1) {
+        return `${head}${separator}${tail}`;
+    }
+
+    if (recentQuestionCount <= 3) {
+        return `${head}${separator}${middle}`;
+    }
+
+    return `${middle}${separator}${tail}`;
 }
 
 function hashString(value: string): number {
@@ -300,6 +341,11 @@ function collectCodeSignals(code: string): CodeSignals {
 }
 
 export async function generateHint(code: string, question: string, ollamaCaller: OllamaCaller = callOllama): Promise<string> {
+    const staticHint = buildFallbackHint(code, question);
+    if (preferStaticHint(staticHint)) {
+        return staticHint;
+    }
+
     const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS, QUESTION_HINT_NUM_CTX);
     const normalizedFirst = normalizeHintOutput(first);
     if (normalizedFirst) {
@@ -320,6 +366,10 @@ export async function generateHint(code: string, question: string, ollamaCaller:
 
     console.warn('Raw LLM Attempt:', first, repaired);
     return buildFallbackHint(code, question);
+}
+
+function preferStaticHint(hint: string): boolean {
+    return hint.trim().length > 0;
 }
 
 export async function evaluateAnswer(
@@ -356,12 +406,12 @@ export async function evaluateAnswer(
 }
 
 export function normalizeExplanationOutput(raw: string): string | null {
-    const oneLine = raw.replace(/\r?\n+/g, ' ').trim();
-    if (!oneLine) {
+    const normalized = raw.replace(/\r\n?/g, '\n').trim();
+    if (!normalized) {
         return null;
     }
 
-    const sanitized = limitToSentences(stripLeadingGradeLabels(oneLine), 3);
+    const sanitized = stripMarkdownFormatting(stripLeadingGradeLabels(normalized)).trim();
     if (!sanitized) {
         return null;
     }
@@ -473,24 +523,20 @@ function extractMeaningfulIdentifiers(text: string): Set<string> {
     return identifiers;
 }
 
-function limitToSentences(text: string, maxSentences: number): string {
-    const matches = text.match(/[^.!?]+[.!?]/g);
-    if (!matches || matches.length === 0) {
-        return text.trim();
-    }
-
-    return matches
-        .slice(0, maxSentences)
-        .map((s) => s.trim())
-        .join(' ')
-        .trim();
-}
-
 function stripLeadingGradeLabels(text: string): string {
     return text
         .replace(/^\s*\[(PASS|PARTIAL|MISS)\]\s*/i, '')
         .replace(/^\s*(PASS|PARTIAL|MISS)\s*[:\-]\s*/i, '')
         .trim();
+}
+
+function stripMarkdownFormatting(text: string): string {
+    return text
+        .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/__([^_]+)__/g, '$1')
+        .replace(/\*([^*\n]+)\*/g, '$1')
+        .replace(/_([^_\n]+)_/g, '$1');
 }
 
 function buildGroundedFallbackExplanation(code: string, question: string): string {
@@ -569,12 +615,11 @@ function buildFallbackHint(code: string, question: string): string {
 
 function buildHintRepairPrompt(rawOutput: string, question: string): string {
     return [
-        'Rewrite this into exactly one concise conceptual hint for the learner.',
+        'Rewrite this into exactly one concise conceptual fill-in-the-blank hint for the learner.',
         'STRICT RULES:',
-        '- One sentence only.',
-        '- Keep it conceptual; do not mention exact variable, function, API, or table names.',
-        '- Do not reveal the answer.',
-        '- Keep it directly relevant to the question context.',
+        '- One sentence only, ending with a period.',
+        '- Use this structure: "Focus on how ____ affects ____ before ____."',
+        '- Keep the blanks behavior-focused and directly relevant to the question context.',
         '',
         'Question context:',
         question,

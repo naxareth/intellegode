@@ -17,7 +17,22 @@
         "command": "intellegode.quizMe",
         "title": "Intellegode: Quiz Me"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Intellegode",
+      "properties": {
+        "intellegode.ollamaUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Base URL for the Ollama server (without /api path)."
+        },
+        "intellegode.defaultModel": {
+          "type": "string",
+          "default": "qwen3.5:4b",
+          "description": "Default Ollama model used for Intellegode requests."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

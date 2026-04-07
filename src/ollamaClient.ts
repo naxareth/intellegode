@@ -1,8 +1,6 @@
+import * as vscode from 'vscode';
 import { OllamaChatResponse } from './types';
 
-const OLLAMA_URL = 'http://localhost:11434/api/chat';
-const OLLAMA_TAGS_URL = 'http://localhost:11434/api/tags';
-const DEFAULT_OLLAMA_MODEL = 'qwen3.5:4b';
 const PREFERRED_FALLBACK_MODELS = ['qwen3.5:4b', 'qwen3:4b', 'qwen2.5:3b'];
 const DEFAULT_NUM_CTX = 3072;
 const OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS = Number.parseInt(process.env.INTELLEGODE_OLLAMA_REQUEST_TIMEOUT_MS ?? '0', 10);
@@ -16,6 +14,38 @@ type GenerateOptions = {
 	reduceContext?: boolean;
 	numCtx?: number;
 };
+
+function getIntellegodeConfig(): vscode.WorkspaceConfiguration {
+	return vscode.workspace.getConfiguration('intellegode');
+}
+
+function getConfiguredOllamaBaseUrl(): string {
+	const configured = getIntellegodeConfig().get<string>('ollamaUrl');
+	const normalized = (configured ?? '').trim().replace(/\/+$/, '');
+ if (!normalized) {
+		throw new Error('Missing configuration: intellegode.ollamaUrl');
+	}
+
+	return normalized;
+}
+
+function getConfiguredDefaultModel(): string {
+	const configured = getIntellegodeConfig().get<string>('defaultModel');
+	const normalized = (configured ?? '').trim();
+	if (!normalized) {
+		throw new Error('Missing configuration: intellegode.defaultModel');
+	}
+
+	return normalized;
+}
+
+function getOllamaChatUrl(): string {
+	return `${getConfiguredOllamaBaseUrl()}/api/chat`;
+}
+
+function getOllamaTagsUrl(): string {
+	return `${getConfiguredOllamaBaseUrl()}/api/tags`;
+}
 
 function isModelNotFoundError(error: unknown): boolean {
 	if (!(error instanceof Error)) {
@@ -38,7 +68,7 @@ async function fetchAvailableModels(timeoutMs: number): Promise<string[]> {
 	const timeout = setTimeout(() => controller.abort(), Math.max(5000, Math.floor(timeoutMs / 2)));
 
 	try {
-		const response = await fetch(OLLAMA_TAGS_URL, { signal: controller.signal });
+		const response = await fetch(getOllamaTagsUrl(), { signal: controller.signal });
 		if (!response.ok) {
 			return [];
 		}
@@ -97,7 +127,7 @@ async function generateWithModel(
 	);
 
 	try {
-		const response = await fetch(OLLAMA_URL, {
+		const response = await fetch(getOllamaChatUrl(), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			signal: controller.signal,
@@ -209,18 +239,20 @@ function parseStreamingLine(line: string, model: string): OllamaChatResponse {
 
 export async function callOllama(
 	prompt: string,
-	model: string = DEFAULT_OLLAMA_MODEL,
+	model?: string,
 	maxTokens: number = 300,
 	timeoutMs: number = 45000,
 	numCtx?: number
 ): Promise<string> {
+	const requestedModel = model?.trim() ? model : getConfiguredDefaultModel();
+
 	try {
-		return await generateWithModel(prompt, model, maxTokens, timeoutMs, numCtx ? { numCtx } : {});
+		return await generateWithModel(prompt, requestedModel, maxTokens, timeoutMs, numCtx ? { numCtx } : {});
 	} catch (error) {
 		if (isModelLoadFailure(error)) {
-			console.warn(`Model load failed for '${model}'. Retrying with safer CPU-oriented options.`);
+			console.warn(`Model load failed for '${requestedModel}'. Retrying with safer CPU-oriented options.`);
 			try {
-				return await generateWithModel(prompt, model, maxTokens, timeoutMs, {
+				return await generateWithModel(prompt, requestedModel, maxTokens, timeoutMs, {
 					forceCpu: true,
 					reduceContext: true
 				});
@@ -236,9 +268,9 @@ export async function callOllama(
 		}
 
 		const availableModels = await fetchAvailableModels(timeoutMs);
-		const fallbackModel = pickFallbackModel(model, availableModels);
+		const fallbackModel = pickFallbackModel(requestedModel, availableModels);
 		if (fallbackModel) {
-			console.warn(`Configured model '${model}' is missing. Falling back to '${fallbackModel}'.`);
+			console.warn(`Configured model '${requestedModel}' is missing. Falling back to '${fallbackModel}'.`);
 			try {
 				return await generateWithModel(prompt, fallbackModel, maxTokens, timeoutMs);
 			} catch (fallbackError) {
@@ -256,8 +288,8 @@ export async function callOllama(
 
 		const available = availableModels.length > 0 ? availableModels.join(', ') : 'none';
 		throw new Error(
-			`Configured model '${model}' is not installed in Ollama. Available models: ${available}. ` +
-			`Install it with: ollama pull ${model}`
+			`Configured model '${requestedModel}' is not installed in Ollama. Available models: ${available}. ` +
+			`Install it with: ollama pull ${requestedModel}`
 		);
 	}
 }
