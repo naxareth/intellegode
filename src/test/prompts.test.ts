@@ -4,12 +4,16 @@ import { buildEvaluatePrompt, buildHintPrompt, buildQuizQuestionPrompt } from '.
 suite('Prompt Builders', () => {
 	test('buildQuizQuestionPrompt enforces beginner single-concept question', () => {
 		const prompt = buildQuizQuestionPrompt('const x = 1;', 'const x = 1;\nconsole.log(x);');
+		assert.ok(prompt.includes("You are a strict but fair Senior Staff Software Engineer reviewing a Junior Developer's Pull Request."));
 		assert.ok(prompt.includes('Write one code-comprehension question about the selected snippet.'));
 		assert.ok(prompt.includes('STRICT RULES:'));
 		assert.ok(prompt.includes('- Output ONLY one question and nothing else.'));
 		assert.ok(prompt.includes('- The question must end with a question mark.'));
 		assert.ok(prompt.includes('- Mention one exact identifier from the snippet'));
 		assert.ok(prompt.includes('- Focus on behavior, purpose, control flow, or consequence within this snippet.'));
+		assert.ok(prompt.includes("- Do NOT ask basic syntax or definition questions (e.g., 'What does the || operator do?')."));
+		assert.ok(prompt.includes('- Ask about a potential edge case, an unhandled error, a state mutation, or a design tradeoff.'));
+		assert.ok(prompt.includes('- Force the developer to defend their architectural choices or explain what happens when assumptions fail.'));
 		assert.ok(prompt.includes('BAD examples (do not generate these):'));
 		assert.ok(prompt.includes('- What does this function do? (too broad)'));
 		assert.ok(prompt.includes('- What language feature is used here? (syntax question, not comprehension)'));
@@ -45,9 +49,10 @@ suite('Prompt Builders', () => {
 
 	test('buildEvaluatePrompt requests explanation-only output', () => {
 		const prompt = buildEvaluatePrompt('code', 'question');
-		assert.ok(prompt.includes('Explain the code behavior that answers the question.'));
+		assert.ok(prompt.includes("Evaluate the Junior Developer's answer like a Senior Staff Engineer."));
 		assert.ok(prompt.includes('- Use plain English in 1 to 3 sentences.'));
 		assert.ok(prompt.includes('- Mention at least one exact identifier from the code.'));
+		assert.ok(prompt.includes("- Briefly validate what they got right, but explicitly point out the deeper architectural 'why' or edge case they missed."));
 		assert.ok(prompt.includes('- Do not output labels, grading, or the learner answer.'));
 		assert.ok(prompt.includes('Correct explanation:'));
 	});

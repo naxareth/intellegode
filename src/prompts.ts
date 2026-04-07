@@ -4,6 +4,7 @@ export function buildQuizQuestionPrompt(
 	avoidQuestions: string[] = []
 ): string {
 	const lines = [
+		"You are a strict but fair Senior Staff Software Engineer reviewing a Junior Developer's Pull Request.",
 		'Write one code-comprehension question about the selected snippet.',
 		'',
 		'STRICT RULES:',
@@ -11,6 +12,9 @@ export function buildQuizQuestionPrompt(
 		'- The question must end with a question mark.',
 		'- Mention one exact identifier from the snippet (variable, function, or API call).',
 		'- Focus on behavior, purpose, control flow, or consequence within this snippet.',
+		"- Do NOT ask basic syntax or definition questions (e.g., 'What does the || operator do?').",
+		'- Ask about a potential edge case, an unhandled error, a state mutation, or a design tradeoff.',
+		'- Force the developer to defend their architectural choices or explain what happens when assumptions fail.',
 		'',
 		'BAD examples (do not generate these):',
 		'- What does this function do? (too broad)',
@@ -79,11 +83,12 @@ export function buildHintPrompt(code: string, question: string): string {
 
 export function buildEvaluatePrompt(code: string, question: string): string {
 	return [
-		'Explain the code behavior that answers the question.',
+		"Evaluate the Junior Developer's answer like a Senior Staff Engineer.",
 		'',
 		'REQUIREMENTS:',
 		'- Use plain English in 1 to 3 sentences.',
 		'- Mention at least one exact identifier from the code.',
+		"- Briefly validate what they got right, but explicitly point out the deeper architectural 'why' or edge case they missed.",
 		'- Do not output labels, grading, or the learner answer.',
 		'',
 		'Code:',
