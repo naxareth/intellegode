@@ -4,8 +4,8 @@ import { QuizWebviewMessage } from './types';
 import { getQuizWebviewHtml } from './quizWebview';
 import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
 
-const MAX_GLOBAL_QUESTION_MEMORY = 20;
-const MAX_SELECTION_QUESTION_MEMORY = 8;
+const MAX_GLOBAL_QUESTION_MEMORY = 8;  // Lighter cross-session history to prevent stale context
+const MAX_SELECTION_QUESTION_MEMORY = 8;  // Stronger per-snippet history for better dedup
 const QUESTION_STATE_KEY = 'intellegode.recentQuestions';
 
 type RecentQuestionState = {
@@ -25,8 +25,19 @@ export async function startQuizSession(
 	const recentQuestionsBySelection = questionState.recentQuestionsBySelection;
 	const selectionKey = normalizeSelectionKey(selectedCode);
 	const selectionHistory = recentQuestionsBySelection[selectionKey] ?? [];
-	const askedQuestions: string[] = [...selectionHistory, ...globalRecentQuestions].slice(-12);
+	
+	// Prioritize selection-specific history, then add recent global questions for pattern diversity
+	// Take up to 8 selection-specific + 4 recent global = max 12 combined
+	const askedQuestions: string[] = [
+		...selectionHistory.slice(-MAX_SELECTION_QUESTION_MEMORY),
+		...globalRecentQuestions.slice(-4)
+	];
 	const historyLoadedCount = askedQuestions.length;
+	
+	// Log what's being loaded for debugging
+	console.warn(
+		`[INTELLEGODE][HISTORY] selectionSpecific=${selectionHistory.length} (using ${Math.min(selectionHistory.length, MAX_SELECTION_QUESTION_MEMORY)}) + globalRecent=${Math.min(globalRecentQuestions.length, 4)} = total=${historyLoadedCount}`
+	);
 	let gotItCount = 0;
 	let missedItCount = 0;
 	const showSnippetLengthWarning = selectedCode.trim().length > 800;
