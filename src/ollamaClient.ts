@@ -100,12 +100,12 @@ function pickFallbackModel(requestedModel: string, availableModels: string[]): s
 	return null;
 }
 
-function resolveRequestTimeoutMs(): number | null {
+function resolveRequestTimeoutMs(fallbackMs?: number): number | null {
 	if (Number.isFinite(OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS) && OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS > 0) {
 		return OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS;
 	}
 
-	return null;
+	return fallbackMs ?? null;
 }
 
 async function generateWithModel(
@@ -116,7 +116,7 @@ async function generateWithModel(
 	generateOptions: GenerateOptions = {}
 ): Promise<string> {
 	const controller = new AbortController();
-	const requestTimeoutMs = resolveRequestTimeoutMs();
+	const requestTimeoutMs = resolveRequestTimeoutMs(_timeoutMs);
 	const timeout = requestTimeoutMs ? setTimeout(() => controller.abort(), requestTimeoutMs) : null;
 	const shouldForceCpu = generateOptions.forceCpu || process.env.INTELLEGODE_OLLAMA_FORCE_CPU === '1';
 	const numCtx = generateOptions.numCtx ?? (generateOptions.reduceContext ? 1024 : DEFAULT_NUM_CTX);
