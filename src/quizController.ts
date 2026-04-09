@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizService';
 import { QuizWebviewMessage } from './types';
 import { getQuizWebviewHtml } from './quizWebview';
+import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
 
 const MAX_GLOBAL_QUESTION_MEMORY = 20;
 const MAX_SELECTION_QUESTION_MEMORY = 8;
@@ -62,8 +63,10 @@ export async function startQuizSession(
 					explanation
 				});
 			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-				panel.webview.postMessage({ command: 'showResult', result: `Error: ${errorMessage}` });
+				const friendlyMessage = getUserFriendlyErrorMessage(error);
+				const hint = getHintForError(error);
+				const fullMessage = hint ? `${friendlyMessage}\n\n${hint}` : friendlyMessage;
+				panel.webview.postMessage({ command: 'showResult', result: `Error: ${fullMessage}` });
 			} finally {
 				panel.webview.postMessage({ command: 'setLoading', loading: false });
 			}
@@ -76,8 +79,10 @@ export async function startQuizSession(
 				const hint = await generateHint(selectedCode, currentQuestion);
 				panel.webview.postMessage({ command: 'showHint', hint });
 			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-				panel.webview.postMessage({ command: 'showHint', hint: `Hint error: ${errorMessage}` });
+				const friendlyMessage = getUserFriendlyErrorMessage(error);
+				const errorHint = getHintForError(error);
+				const fullMessage = errorHint ? `${friendlyMessage}\n\n${errorHint}` : friendlyMessage;
+				panel.webview.postMessage({ command: 'showHint', hint: `Hint error: ${fullMessage}` });
 			} finally {
 				panel.webview.postMessage({ command: 'setLoading', loading: false });
 			}
@@ -97,10 +102,10 @@ export async function startQuizSession(
 				panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
 				panel.webview.postMessage({ command: 'updateHistoryCount', count: askedQuestions.length });
 			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+				const friendlyMessage = getUserFriendlyErrorMessage(error);
 				panel.webview.postMessage({
 					command: 'showResult',
-					result: `[MISS] You could not get a new question because ${errorMessage}.`
+					result: `Could not generate a new question: ${friendlyMessage}`
 				});
 			} finally {
 				panel.webview.postMessage({ command: 'setLoading', loading: false });

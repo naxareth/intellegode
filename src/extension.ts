@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { startQuizSession } from './quizController';
 import { checkOllamaAvailability } from './ollamaClient';
+import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
 
 const EVALUATOR_MODEL = 'qwen3.5:4b';
 const NON_CODE_LANGUAGE_IDS = new Set([
@@ -65,8 +66,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 			await startQuizSession(panel, selectedCode, fileCode, EVALUATOR_MODEL, context);
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-			vscode.window.showErrorMessage(`Intellegode failed: ${errorMessage}`);
+			const friendlyMessage = getUserFriendlyErrorMessage(error);
+			const hint = getHintForError(error);
+			const fullMessage = hint ? `${friendlyMessage}\n\n${hint}` : friendlyMessage;
+			vscode.window.showErrorMessage(`Intellegode: ${fullMessage}`);
 		}
 	});
 
