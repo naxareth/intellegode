@@ -11,17 +11,28 @@ export function buildQuizQuestionPrompt(
 		'- Output ONLY one question and nothing else.',
 		'- The question must end with a question mark.',
 		'- Mention one exact identifier from the snippet (variable, function, or API call).',
-		'- Focus on behavior, purpose, control flow, or consequence within this snippet.',
-		"- Do NOT ask basic syntax or definition questions (e.g., 'What does the || operator do?').",
-		'- Ask about a potential edge case, an unhandled error, a state mutation, or a design tradeoff.',
-		'- Force the developer to defend their architectural choices or explain what happens when assumptions fail.',
+		"- Focus on WHY the code is structured this way, not just WHAT it does.",
+		"- Ask about PURPOSE: Why use this approach? Why call this function? Why check this condition?",
+		"- Ask about CONSEQUENCE: What changes if you modify this line? What happens when this flow completes?",
+		"- Ask about INTEGRATION: How does this connect to the broader logic? What assumptions does it make?",
+		"- Ask about DESIGN: Why not do it differently? What tradeoff is being made here?",
+		"- Do NOT ask basic syntax questions (e.g., 'What does the || operator do?').",
+		"- Do NOT ask about generic edge cases (e.g., 'What if X is null?') unless deeply tied to the code's logic.",
+		'',
+		'GOOD question examples:',
+		'- Why does this code fetch the schema before building the prompt?',
+		'- What assumption about the response format is this code making?',
+		'- Why would the model.generateContent() call need access to both skillExtractionPrompt and dynamicPrompt?',
+		'- What happens to the extracted skills if the parsing fails?',
+		'- Why does the function use the schema context instead of querying the model directly?',
 		'',
 		'BAD examples (do not generate these):',
-		'- What does this function do? (too broad)',
-		'- What language feature is used here? (syntax question, not comprehension)',
+		'- What does this function do? (too broad/vague)',
+		'- What is JSON.parse()? (syntax question)',
+		'- What if the URL is invalid? (generic what-if)',
 		...(avoidQuestions.length >= 2
 			? [
-				'You have already asked questions about this code. Focus on a DIFFERENT behavior, condition, or operation than the ones listed below. Look at a different part of the snippet.'
+				'You have already asked questions about this code. Focus on a DIFFERENT aspect: purpose, design choice, data flow, or integration point than the ones listed below.'
 			]
 			: []),
 		...buildAvoidQuestionLines(avoidQuestions),
@@ -43,12 +54,14 @@ export function buildQuizQuestionRepairPrompt(
 	avoidQuestions: string[] = []
 ): string {
 	const lines = [
-		'Rewrite the malformed output as one valid question about the selected snippet.',
+		'Rewrite the malformed or low-quality output as one valid, insightful question about the selected snippet.',
 		'',
-		'RULES:',
+		'QUALITY RULES:',
 		'- Output ONLY one question ending with a question mark.',
 		'- Mention one exact identifier from the snippet.',
-		'- No labels, no markdown, no code, and no answer.',
+		'- Ask WHY the code is written this way, not just WHAT it does.',
+		'- Ask about PURPOSE, CONSEQUENCE, INTEGRATION, or DESIGN -- not generic edge cases.',
+		'- Do NOT generate questions like "What if X is null?" unless absolutely core to understanding the logic.',
 		...buildAvoidQuestionLines(avoidQuestions),
 		'',
 		'Selected snippet:',
@@ -57,7 +70,7 @@ export function buildQuizQuestionRepairPrompt(
 		'Full file context:',
 		fileContext,
 		'',
-		'Output to repair:',
+		'Low-quality original:',
 		rawOutput
 	];
 
