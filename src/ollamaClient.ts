@@ -237,6 +237,37 @@ function parseStreamingLine(line: string, model: string): OllamaChatResponse {
 	}
 }
 
+export async function checkOllamaAvailability(): Promise<{ available: boolean; message?: string }> {
+	try {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 5000);
+
+		const response = await fetch(getOllamaTagsUrl(), { signal: controller.signal });
+		clearTimeout(timeout);
+
+		if (!response.ok) {
+			return {
+				available: false,
+				message: `Ollama is not responding (HTTP ${response.status}). Make sure Ollama is running: 'ollama serve' or 'docker-compose up -d'`
+			};
+		}
+
+		return { available: true };
+	} catch (error) {
+		if (error instanceof Error && error.name === 'AbortError') {
+			return {
+				available: false,
+				message: 'Ollama connection timed out. Make sure Ollama is running.'
+			};
+		}
+
+		return {
+			available: false,
+			message: `Cannot connect to Ollama at ${getConfiguredOllamaBaseUrl()}. Check your 'intellegode.ollamaUrl' setting.`
+		};
+	}
+}
+
 export async function callOllama(
 	prompt: string,
 	model?: string,
