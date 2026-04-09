@@ -64,12 +64,7 @@ export async function generateQuizQuestion(
             return normalizedFirst;
         }
 
-        if (normalizedFirst && firstIsRepeated && firstIsGrounded) {
-            seenQuestions.push(normalizedFirst);
-            console.warn(`[INTELLEGODE][QUESTION FINAL][repeated-but-grounded] ${normalizedFirst}`);
-            return normalizedFirst;
-        }
-
+        // Reject repeated questions, even if grounded -- always attempt repair first
         if (normalizedFirst && (firstIsRepeated || !firstIsGrounded)) {
             console.warn(
                 `[INTELLEGODE][QUESTION REJECT][first] repeated=${firstIsRepeated} grounded=${firstIsGrounded} question=${normalizedFirst}`
@@ -112,12 +107,7 @@ export async function generateQuizQuestion(
             return normalizedRepaired;
         }
 
-        if (normalizedRepaired && repairedIsRepeated && repairedIsGrounded) {
-            seenQuestions.push(normalizedRepaired);
-            console.warn(`[INTELLEGODE][QUESTION FINAL][repeated-but-grounded] ${normalizedRepaired}`);
-            return normalizedRepaired;
-        }
-
+        // Reject repeated questions, even if grounded -- escalate to fallback
         if (normalizedRepaired && (repairedIsRepeated || !repairedIsGrounded)) {
             console.warn(
                 `[INTELLEGODE][QUESTION REJECT][repair] repeated=${repairedIsRepeated} grounded=${repairedIsGrounded} question=${normalizedRepaired}`
