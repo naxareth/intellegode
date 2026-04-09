@@ -27,20 +27,35 @@ export async function startQuizSession(
 	const selectionHistory = recentQuestionsBySelection[selectionKey] ?? [];
 	const askedQuestions: string[] = [...selectionHistory, ...globalRecentQuestions].slice(-12);
 	const historyLoadedCount = askedQuestions.length;
+	let gotItCount = 0;
+	let missedItCount = 0;
+	const showSnippetLengthWarning = selectedCode.trim().length > 800;
+
+	// Show loading state immediately so user knows something is happening
+	const loadingHtml = getQuizWebviewHtml(
+		panel.webview,
+		context.extensionUri,
+		'Loading...',
+		showSnippetLengthWarning,
+		historyLoadedCount
+	);
+	panel.webview.html = loadingHtml;
+
+	// Generate question in background
 	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
 	console.warn(`[INTELLEGODE][UI QUESTION][initial] ${currentQuestion}`);
 	askedQuestions.push(currentQuestion);
 	await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
-	let gotItCount = 0;
-	let missedItCount = 0;
-	const showSnippetLengthWarning = selectedCode.trim().length > 800;
-	panel.webview.html = getQuizWebviewHtml(
+
+	// Update webview with actual question
+	const questionHtml = getQuizWebviewHtml(
 		panel.webview,
 		context.extensionUri,
 		currentQuestion,
 		showSnippetLengthWarning,
 		historyLoadedCount
 	);
+	panel.webview.html = questionHtml;
 
 	// Route webview events to the quiz service and return UI updates to the panel.
 	panel.webview.onDidReceiveMessage(async (message: QuizWebviewMessage) => {
