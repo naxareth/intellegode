@@ -15,6 +15,21 @@
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
+			"preLaunchTask": "${defaultBuildTask}",
+			"env": {
+				"INTELLEGODE_OLLAMA_FORCE_CPU": "1"
+			}
+		},
+		{
+			"name": "Run Extension (GPU)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
 			"preLaunchTask": "${defaultBuildTask}"
 		}
 	]
