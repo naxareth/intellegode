@@ -100,12 +100,12 @@ function pickFallbackModel(requestedModel: string, availableModels: string[]): s
 	return null;
 }
 
-function resolveRequestTimeoutMs(): number | null {
+function resolveRequestTimeoutMs(fallbackMs?: number): number | null {
 	if (Number.isFinite(OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS) && OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS > 0) {
 		return OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS;
 	}
 
-	return null;
+	return fallbackMs ?? null;
 }
 
 async function generateWithModel(
@@ -116,7 +116,7 @@ async function generateWithModel(
 	generateOptions: GenerateOptions = {}
 ): Promise<string> {
 	const controller = new AbortController();
-	const requestTimeoutMs = resolveRequestTimeoutMs();
+	const requestTimeoutMs = resolveRequestTimeoutMs(_timeoutMs);
 	const timeout = requestTimeoutMs ? setTimeout(() => controller.abort(), requestTimeoutMs) : null;
 	const shouldForceCpu = generateOptions.forceCpu || process.env.INTELLEGODE_OLLAMA_FORCE_CPU === '1';
 	const numCtx = generateOptions.numCtx ?? (generateOptions.reduceContext ? 1024 : DEFAULT_NUM_CTX);
@@ -234,6 +234,37 @@ function parseStreamingLine(line: string, model: string): OllamaChatResponse {
 		return JSON.parse(line) as OllamaChatResponse;
 	} catch {
 		throw new Error(`Failed to parse Ollama streaming line for model '${model}': ${line.slice(0, 200)}`);
+	}
+}
+
+export async function checkOllamaAvailability(): Promise<{ available: boolean; message?: string }> {
+	try {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 5000);
+
+		const response = await fetch(getOllamaTagsUrl(), { signal: controller.signal });
+		clearTimeout(timeout);
+
+		if (!response.ok) {
+			return {
+				available: false,
+				message: `Ollama is not responding (HTTP ${response.status}). Make sure Ollama is running: 'ollama serve' or 'docker-compose up -d'`
+			};
+		}
+
+		return { available: true };
+	} catch (error) {
+		if (error instanceof Error && error.name === 'AbortError') {
+			return {
+				available: false,
+				message: 'Ollama connection timed out. Make sure Ollama is running.'
+			};
+		}
+
+		return {
+			available: false,
+			message: `Cannot connect to Ollama at ${getConfiguredOllamaBaseUrl()}. Check your 'intellegode.ollamaUrl' setting.`
+		};
 	}
 }
 

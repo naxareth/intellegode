@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { startQuizSession } from './quizController';
+import { checkOllamaAvailability } from './ollamaClient';
+import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
 
 const EVALUATOR_MODEL = 'qwen3.5:4b';
 const NON_CODE_LANGUAGE_IDS = new Set([
@@ -16,6 +18,23 @@ const NON_CODE_LANGUAGE_IDS = new Set([
 // This method is called when your extension is activated.
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Intellegode is now active.');
+
+	// Check Ollama availability on startup
+	checkOllamaAvailability().then((result) => {
+		if (!result.available) {
+			const message = result.message || 'Ollama is not available.';
+			const learnMoreAction = 'Learn More';
+			
+			vscode.window.showWarningMessage(
+				`Intellegode: ${message}`,
+				learnMoreAction
+			).then((action) => {
+				if (action === learnMoreAction) {
+					vscode.env.openExternal(vscode.Uri.parse('https://ollama.com/'));
+				}
+			});
+		}
+	});
 
 	const disposable = vscode.commands.registerCommand('intellegode.quizMe', async () => {
 		const editor = vscode.window.activeTextEditor;
@@ -47,8 +66,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 			await startQuizSession(panel, selectedCode, fileCode, EVALUATOR_MODEL, context);
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-			vscode.window.showErrorMessage(`Intellegode failed: ${errorMessage}`);
+			const friendlyMessage = getUserFriendlyErrorMessage(error);
+			const hint = getHintForError(error);
+			const fullMessage = hint ? `${friendlyMessage}\n\n${hint}` : friendlyMessage;
+			vscode.window.showErrorMessage(`Intellegode: ${fullMessage}`);
 		}
 	});
 

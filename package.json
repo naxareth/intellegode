@@ -18,6 +18,14 @@
         "title": "Intellegode: Quiz Me"
       }
     ],
+    "keybindings": [
+      {
+        "command": "intellegode.quizMe",
+        "key": "ctrl+alt+q",
+        "mac": "cmd+alt+q",
+        "when": "editorFocus && editorTextFocus"
+      }
+    ],
     "configuration": {
       "title": "Intellegode",
       "properties": {

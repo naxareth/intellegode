@@ -15,7 +15,7 @@ const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 45000;
 const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 60000;
 const QUIZ_MODEL = 'qwen3.5:4b';
 const MAX_QUESTION_ATTEMPTS = 2;
-const QUESTION_HISTORY_WINDOW = 4;
+const QUESTION_HISTORY_WINDOW = 12; // Increased from 4 to use full recent history for dedup
 const MAX_SELECTED_SNIPPET_CHARS = 2000;
 const MAX_FILE_CONTEXT_CHARS = 1500;
 const QUESTION_HINT_NUM_CTX = 3072;
@@ -64,12 +64,7 @@ export async function generateQuizQuestion(
             return normalizedFirst;
         }
 
-        if (normalizedFirst && firstIsRepeated && firstIsGrounded) {
-            seenQuestions.push(normalizedFirst);
-            console.warn(`[INTELLEGODE][QUESTION FINAL][repeated-but-grounded] ${normalizedFirst}`);
-            return normalizedFirst;
-        }
-
+        // Reject repeated questions, even if grounded -- always attempt repair first
         if (normalizedFirst && (firstIsRepeated || !firstIsGrounded)) {
             console.warn(
                 `[INTELLEGODE][QUESTION REJECT][first] repeated=${firstIsRepeated} grounded=${firstIsGrounded} question=${normalizedFirst}`
@@ -112,12 +107,7 @@ export async function generateQuizQuestion(
             return normalizedRepaired;
         }
 
-        if (normalizedRepaired && repairedIsRepeated && repairedIsGrounded) {
-            seenQuestions.push(normalizedRepaired);
-            console.warn(`[INTELLEGODE][QUESTION FINAL][repeated-but-grounded] ${normalizedRepaired}`);
-            return normalizedRepaired;
-        }
-
+        // Reject repeated questions, even if grounded -- escalate to fallback
         if (normalizedRepaired && (repairedIsRepeated || !repairedIsGrounded)) {
             console.warn(
                 `[INTELLEGODE][QUESTION REJECT][repair] repeated=${repairedIsRepeated} grounded=${repairedIsGrounded} question=${normalizedRepaired}`
@@ -152,17 +142,39 @@ export function normalizeQuizQuestionOutput(raw: string): string | null {
         return null;
     }
 
-    const questionSegments = flattened.match(/[^.!?;:]*\?/g) ?? [];
-    for (const segment of questionSegments) {
-        const candidate = segment.trim();
+    // Extract complete sentences ending with question mark
+    const questionRegex = /[A-Z][^.!?]*?\?|[A-Z][^?]*?\?/g;
+    const matches = flattened.match(questionRegex) ?? [];
+    
+    for (const match of matches) {
+        const candidate = match.trim();
         if (candidate && isUsableQuestionCandidate(candidate)) {
             return candidate;
         }
     }
 
+    // Fallback: find first question mark and extract everything up to it
     if (flattened.includes('?')) {
-        const firstQuestion = flattened.slice(0, flattened.indexOf('?') + 1).trim();
-        return isUsableQuestionCandidate(firstQuestion) ? firstQuestion : null;
+        const qIndex = flattened.indexOf('?');
+        // Find the sentence start by looking back for sentence boundaries
+        let startIdx = 0;
+        for (let i = qIndex - 1; i >= 0; i--) {
+            const char = flattened[i];
+            // Stop at sentence ending punctuation
+            if ((char === '.' || char === '!' || char === '?') && i < qIndex - 1) {
+                startIdx = i + 1;
+                break;
+            }
+            // Also try to find a capital letter that starts a sentence
+            if (/[A-Z]/.test(char) && i > 0 && /[.!? ]/.test(flattened[i - 1])) {
+                startIdx = i;
+                break;
+            }
+        }
+        const firstQuestion = flattened.slice(startIdx, qIndex + 1).trim();
+        if (isUsableQuestionCandidate(firstQuestion)) {
+            return firstQuestion;
+        }
     }
 
     return null;
@@ -252,7 +264,7 @@ function isRepeatedQuestion(candidate: string, recentQuestions: string[]): boole
     }
 
     for (const question of recentQuestions) {
-        if (normalizeQuestionForComparison(question) === normalizedCandidate) {
+        if (isQuestionSimilar(candidate, question)) {
             return true;
         }
     }
@@ -265,7 +277,53 @@ function normalizeQuestionForComparison(question: string): string {
         .toLowerCase()
         .replace(/[^a-z0-9\s]/g, ' ')
         .replace(/\s+/g, ' ')
+        .trim()
+        // Remove common question filler patterns to focus on actual content
+        .replace(/^(why|how|what|where|when|which|who)\s+/i, '')
+        .replace(/\?\.?$/, '')
         .trim();
+}
+
+function isQuestionSimilar(q1: string, q2: string): boolean {
+    const norm1 = normalizeQuestionForComparison(q1);
+    const norm2 = normalizeQuestionForComparison(q2);
+    
+    // Exact match after normalization
+    if (norm1 === norm2) {
+        return true;
+    }
+    
+    // Extract key terms: focus on nouns and verbs, not filler words
+    const stopWords = new Set(['the', 'a', 'an', 'is', 'are', 'be', 'do', 'does', 'have', 'has', 'or', 'and', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'from', 'with', 'why', 'what', 'how', 'which', 'when', 'where', 'who', 'this', 'that', 'it', 'its', 'if', 'as', 'by', 'can', 'will', 'code', 'snippet', 'question']);
+    const extractKeyTerms = (text: string): string[] => {
+        return text.split(/\s+/).filter(w => w.length > 3 && !stopWords.has(w));
+    };
+    
+    const terms1 = extractKeyTerms(norm1);
+    const terms2 = extractKeyTerms(norm2);
+    
+    // If most key terms overlap, consider them similar
+    const commonTerms = terms1.filter(t => terms2.includes(t)).length;
+    const totalTerms = Math.max(terms1.length, terms2.length);
+    const similarity = totalTerms > 0 ? commonTerms / totalTerms : 0;
+    
+    // Check pattern similarity for questions following the same structure
+    // e.g., "Why does X do Y" vs "How does X perform Y" should be similar
+    const startsWithPattern = (text: string, pattern: string): boolean => text.startsWith(pattern.toLowerCase());
+    const q1Lower = q1.toLowerCase();
+    const q2Lower = q2.toLowerCase();
+    
+    const questionStarters = ['why does', 'how does', 'what does', 'where does', 'when does', 'does this', 'why', 'how'];
+    for (const starter of questionStarters) {
+        if (startsWithPattern(q1Lower, starter) && startsWithPattern(q2Lower, starter)) {
+            // Both questions start the same way - more likely to be duplicates
+            // Lower the threshold for this case
+            return similarity >= 0.5;
+        }
+    }
+    
+    // Default: If 50%+ of key terms overlap (lower threshold), it's a potential duplicate
+    return similarity >= 0.5;
 }
 
 function pickNonRepeatedQuestion(candidates: string[], recentQuestions: string[], selectionSeed: string): string {

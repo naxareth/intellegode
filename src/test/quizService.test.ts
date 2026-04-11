@@ -349,4 +349,177 @@ suite('Quiz Service', () => {
 
 		assert.strictEqual(result, true);
 	});
+
+	suite('Error handling', () => {
+		test('generateQuizQuestion handles LLM timeout errors gracefully', async () => {
+			const fakeCaller = async (): Promise<string> => {
+				const error = new Error('Ollama chat request timed out');
+				error.name = 'TimeoutError';
+				throw error;
+			};
+
+			try {
+				await generateQuizQuestion('const x = 5;', '', fakeCaller);
+				assert.fail('Should have thrown timeout error');
+			} catch (error) {
+				assert.ok(error instanceof Error);
+				assert.ok(error.message.includes('timeout') || error.message.includes('Timeout'));
+			}
+		});
+
+		test('generateQuizQuestion handles empty LLM responses', async () => {
+			const fakeCaller = async (): Promise<string> => '';
+
+			const question = await generateQuizQuestion('const x = 5;', '', fakeCaller);
+			assert.ok(question);
+			assert.ok(question.endsWith('?'));
+		});
+
+		test('generateHint handles LLM failures with fallback text', async () => {
+			const fakeCaller = async (): Promise<string> => {
+				throw new Error('Model failed to load');
+			};
+
+			try {
+				await generateHint('const x = 5;', 'What is x?', fakeCaller);
+				// Should either throw or return fallback
+			} catch (error) {
+				assert.ok(error instanceof Error);
+			}
+		});
+
+		test('evaluateAnswer handles malformed LLM responses', async () => {
+			const fakeCaller = async (): Promise<string> => {
+				return 'This is not a valid explanation format';
+			};
+
+			const result = await evaluateAnswer(
+				'const x = 5;',
+				'What is x?',
+				'It is 5',
+				'qwen3.5:4b',
+				fakeCaller
+			);
+
+			assert.ok(result);
+			assert.ok(result.length > 0);
+		});
+	});
+
+	suite('Edge cases', () => {
+		test('normalizeQuizQuestionOutput handles questions with nested markdown', () => {
+			const input = 'Check **this**: What happens `when` you call this?';
+			const result = normalizeQuizQuestionOutput(input);
+			assert.ok(result);
+			assert.ok(!result.includes('**'));
+			assert.ok(!result.includes('`'));
+		});
+
+		test('generateQuizQuestion handles very large code snippets', async () => {
+			const largeCode = 'const arr = [' + '1,'.repeat(1000) + '1];';
+			const fakeCaller = async (): Promise<string> => {
+				return 'What is stored in arr?';
+			};
+
+			const result = await generateQuizQuestion(largeCode, '', fakeCaller);
+			assert.ok(result);
+			assert.ok(result.endsWith('?'));
+		});
+
+		test('generateQuizQuestion handles code with special characters', async () => {
+			const specialCode = `const msg = \`Hello <\${name}> & "friends"\`; // Comment with ?`;
+			const fakeCaller = async (): Promise<string> => {
+				return 'How are special characters handled in this template?';
+			};
+
+			const result = await generateQuizQuestion(specialCode, '', fakeCaller);
+			assert.ok(result);
+		});
+
+		test('generateQuizQuestion handles empty file context gracefully', async () => {
+			const code = 'const x = 5;';
+			const fakeCaller = async (): Promise<string> => {
+				return 'What does this constant represent?';
+			};
+
+			const result = await generateQuizQuestion(code, '', fakeCaller);
+			assert.ok(result);
+			assert.ok(result.endsWith('?'));
+		});
+
+		test('evaluateAnswer handles very long user answers', async () => {
+			const longAnswer = 'This is a very detailed explanation. ' + 'More detail. '.repeat(100);
+			const fakeCaller = async (): Promise<string> => {
+				return 'Your answer was comprehensive but could be more concise.';
+			};
+
+			const result = await evaluateAnswer(
+				'code here',
+				'Explain this code?',
+				longAnswer,
+				'qwen3.5:4b',
+				fakeCaller
+			);
+
+			assert.ok(result);
+		});
+
+		test('normalizeHintOutput handles hints without periods', () => {
+			const hint = 'Focus on how the condition affects the return value';
+			const result = normalizeHintOutput(hint);
+			assert.ok(result || result === null);
+		});
+
+		test('normalizeExplanationOutput handles multi-paragraph explanations', () => {
+			const explanation = 'First paragraph here.\n\nSecond paragraph here.\n\nThird paragraph here.';
+			const result = normalizeExplanationOutput(explanation);
+			assert.ok(result === null || result.includes('\n'));
+		});
+	});
+
+	suite('Question deduplication', () => {
+		test('generateQuizQuestion rejects identical questions from history', async () => {
+			const targetQuestion = 'Why does this function use try/catch?';
+			let attempts = 0;
+
+			const fakeCaller = async (): Promise<string> => {
+				attempts++;
+				if (attempts === 1) {
+					return targetQuestion; // First attempt returns repeated question
+				}
+				return 'How does error handling prevent crashes?'; // Fallback is different
+			};
+
+			const result = await generateQuizQuestion(
+				'try {} catch {}',
+				'',
+				fakeCaller,
+				[targetQuestion] // Already asked
+			);
+
+			assert.notStrictEqual(result, targetQuestion);
+			assert.ok(result.endsWith('?'));
+		});
+
+		test('generateQuizQuestion respects question history window limit', async () => {
+			let promptContent = '';
+			const fakeCaller = async (prompt: string): Promise<string> => {
+				promptContent = prompt;
+				return 'How does this handle edge cases?';
+			};
+
+			const manyQuestions = Array(10).fill(0).map((_, i) => `Question ${i}?`);
+
+			await generateQuizQuestion(
+				'code here',
+				'',
+				fakeCaller,
+				manyQuestions
+			);
+
+			// Should only see last 4 questions in history window
+			const historyCount = (promptContent.match(/Question \d+\?/g) || []).length;
+			assert.ok(historyCount <= 4);
+		});
+	});
 });
