@@ -426,8 +426,9 @@ export async function generateHint(code: string, question: string, ollamaCaller:
     return buildFallbackHint(code, question);
 }
 
-function preferStaticHint(hint: string): boolean {
-    return hint.trim().length > 0;
+function preferStaticHint(_hint: string): boolean {
+    // Always call the LLM for hints — the static fallback is only used when the LLM fails.
+    return false;
 }
 
 export async function evaluateAnswer(
@@ -508,33 +509,35 @@ export function isContextuallyRelevant(feedback: string, _question: string, _cod
 }
 
 function isQuestionGroundedInSnippet(question: string, selectedCode: string): boolean {
+    // First gate: reject patently generic questions regardless of code content
     if (isLikelyGenericQuestion(question)) {
         return false;
     }
 
     const snippetIdentifiers = extractMeaningfulIdentifiers(selectedCode);
-    if (snippetIdentifiers.size === 0) {
+
+    // If the snippet itself has very few unique identifiers (e.g. a short guard clause),
+    // we can't demand identifier overlap — trust the question passed the generic check above.
+    if (snippetIdentifiers.size < 3) {
         return true;
     }
 
     const questionIdentifiers = extractMeaningfulIdentifiers(question);
+
+    // If the question has no meaningful identifiers but isn't generic, it's likely asking
+    // a conceptual WHY/HOW question — those are valid; don't block them.
     if (questionIdentifiers.size === 0) {
-        return false;
+        return true;
     }
 
-    let overlapCount = 0;
-
+    // Require at least one identifier overlap for questions on larger snippets
     for (const identifier of questionIdentifiers) {
         if (snippetIdentifiers.has(identifier)) {
-            overlapCount += 1;
+            return true;
         }
     }
 
-    if (overlapCount === 0) {
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 function isLikelyGenericQuestion(question: string): boolean {
