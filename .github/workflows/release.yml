@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18 # Minimum supported node version for standard VS Code tasks
+          node-version: 20 # Upgraded to 20 because newest vsce/undici requires webidl File APIs
 
       - name: Install Dependencies
         run: npm ci
