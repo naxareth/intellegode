@@ -141,30 +141,6 @@ export function getQuizWebviewHtml(
     </div>
   </div>
 
-  <div class="modal-wrapper" id="aboutModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <div class="modal-title">About Intellegode</div>
-        <button class="modal-close" data-target="aboutModal">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size: 13px; line-height: 1.5;"><strong>Intellegode</strong> is an AI-powered educational pair-programmer designed to teach developers code concepts via interactive comprehension checks.</p>
-        <p style="font-size: 13px; line-height: 1.5;">Highlight a snippet of code, hit Ctrl+Shift+Enter, and test your understanding dynamically.</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal-wrapper" id="changelogModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <div class="modal-title">Changelog</div>
-        <button class="modal-close" data-target="changelogModal">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="modal-text markdown-content">${renderSimpleMarkdown(changelogContent)}</div>
-      </div>
-    </div>
-  </div>
 
   <div class="modal-wrapper" id="aboutModal">
     <div class="modal-content">
@@ -179,6 +155,9 @@ export function getQuizWebviewHtml(
           <h3>Why Intellegode?</h3>
           <p>Passive reading of code is inefficient. According to pedagogical research, active recall and generative learning form the strongest memory pathways.</p>
           <p>This extension deliberately pauses your copy-pasting momentum and asks the critical "Why?" and "How?" questions behind the code you are interacting with, enforcing deep comprehension instead of superficial task completion.</p>
+
+          <h3 style="margin-top: 24px;">Developer Notes</h3>
+          <p><em>This is my first time publishing an extension in VS Code! I will be actively fixing bugs and adding more features soon. Feedback is warmly welcomed.</em></p>
 
           <h3 style="margin-top: 24px;">Links</h3>
           <p><a href="https://github.com/naxareth/intellegode">View Source code on GitHub</a></p>
