@@ -29,6 +29,9 @@ var answerInput = document.getElementById('answer');
 var questionText = document.getElementById('questionText');
 var hintBox = document.getElementById('hint');
 var hintText = document.getElementById('hintText');
+var hintClose = document.getElementById('hintClose');
+var closeTip = document.getElementById('closeTip');
+var selectionTip = document.getElementById('selectionTip');
 var loading = document.getElementById('loading');
 var result = document.getElementById('result');
 var reviewBox = document.getElementById('reviewBox');
@@ -43,13 +46,28 @@ var editAnswerBtn = document.getElementById('editAnswerBtn');
 var nextQuestionBtn = document.getElementById('nextQuestionBtn');
 var reviewResetBtn = document.getElementById('reviewResetBtn');
 var reviewActions = document.getElementById('reviewActions');
-var progressSection = document.getElementById('progressSection');
-var progressCount = document.getElementById('progressCount');
-var progressGotIt = document.getElementById('progressGotIt');
-var progressMissedIt = document.getElementById('progressMissedIt');
-var statGotIt = document.getElementById('statGotIt');
-var statMissedIt = document.getElementById('statMissedIt');
-var historyCount = document.getElementById('historyCount');
+var validationMsg = document.getElementById('validationMsg');
+var sessionLog = document.getElementById('sessionLog');
+var sessionLogList = document.getElementById('sessionLogList');
+var sessionLogCount = document.getElementById('sessionLogCount');
+
+// Modal Elements
+var modalOverlay = document.getElementById('sessionModal');
+var modalClose = document.getElementById('modalClose');
+var modalQuestion = document.getElementById('modalQuestion');
+var modalAnswer = document.getElementById('modalAnswer');
+var modalExplanation = document.getElementById('modalExplanation');
+var modalPrevBtn = document.getElementById('modalPrevBtn');
+var modalNextBtn = document.getElementById('modalNextBtn');
+var modalPageCounter = document.getElementById('modalPageCounter');
+
+var sessionEntries = [];
+var currentQuestionText = questionText ? questionText.textContent : '';
+var currentUserAnswer = '';
+var currentExplanation = '';
+var currentModalIndex = 0;
+
+var MIN_ANSWER_WORDS = 3;
 
 function collapseInput() {
   if (inputSection) inputSection.classList.add('collapsed');
@@ -69,14 +87,107 @@ function hideReview() {
   if (reviewActions) reviewActions.classList.remove('visible');
 }
 
+function hideValidation() {
+  if (validationMsg) validationMsg.classList.remove('visible');
+}
+
+function showValidation() {
+  if (validationMsg) validationMsg.classList.add('visible');
+}
+
+function isAnswerValid(text) {
+  var trimmed = (text || '').trim();
+  if (!trimmed) return false;
+  var words = trimmed.split(/\s+/).filter(function(w) { return w.length > 0; });
+  return words.length >= MIN_ANSWER_WORDS;
+}
+
+function addSessionEntry(question, grade, answer, explanation) {
+  sessionEntries.push({ question: question, grade: grade, answer: answer, explanation: explanation });
+  renderSessionLog();
+}
+
+function openSessionModal(index) {
+  var modalOverlay = document.getElementById('sessionModal');
+  if (!modalOverlay || index < 0 || index >= sessionEntries.length) return;
+  currentModalIndex = index;
+  var entry = sessionEntries[index];
+  
+  if (modalQuestion) modalQuestion.textContent = entry.question;
+  if (modalAnswer) modalAnswer.textContent = entry.answer;
+  if (modalExplanation) modalExplanation.textContent = entry.explanation;
+  if (modalPageCounter) modalPageCounter.textContent = (index + 1) + ' / ' + sessionEntries.length;
+  
+  if (modalPrevBtn) modalPrevBtn.disabled = index === 0;
+  if (modalNextBtn) modalNextBtn.disabled = index === sessionEntries.length - 1;
+  
+  modalOverlay.classList.add('visible');
+}
+
+function openGenericModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.add('visible');
+}
+
+function closeGenericModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.remove('visible');
+}
+
+function renderSessionLog() {
+  if (!sessionLogList || !sessionLog || !sessionLogCount) return;
+  if (sessionEntries.length === 0) {
+    sessionLog.classList.remove('visible');
+    return;
+  }
+
+  sessionLog.classList.add('visible');
+  sessionLogCount.textContent = sessionEntries.length + ' reviewed';
+
+  sessionLogList.innerHTML = '';
+  // Render in reverse order (newest first)
+  for (var i = sessionEntries.length - 1; i >= 0; i--) {
+    var entry = sessionEntries[i];
+    var badgeClass = entry.grade === 'got-it' ? 'got-it' : 'missed-it';
+    var badgeText = entry.grade === 'got-it' ? 'GOT IT' : 'MISSED';
+    
+    var el = document.createElement('div');
+    el.className = 'session-log-item';
+    el.innerHTML = '<span class="session-log-badge ' + badgeClass + '">' + badgeText + '</span>' +
+                   '<span class="session-log-question">' + escapeForHtml(entry.question) + '</span>';
+    
+    // Bind current loop index
+    (function(index) {
+      el.addEventListener('click', function() {
+        openSessionModal(index);
+      });
+    })(i);
+    
+    sessionLogList.appendChild(el);
+  }
+}
+
+function escapeForHtml(text) {
+  var el = document.createElement('span');
+  el.textContent = text;
+  return el.innerHTML;
+}
+
+// --- Event Listeners ---
+
 if (submitBtn) {
   submitBtn.addEventListener('click', function () {
+    var answer = answerInput ? answerInput.value.trim() : '';
+    if (!isAnswerValid(answer)) {
+      showValidation();
+      return;
+    }
+    hideValidation();
     hideReview();
     if (result) {
       result.className = 'result-box';
       result.textContent = '';
     }
-    var answer = answerInput ? answerInput.value.trim() : '';
     postToExtension({ command: 'submitAnswer', answer: answer });
   });
 }
@@ -89,13 +200,14 @@ if (hintBtn) {
 
 if (newQuestionBtn) {
   newQuestionBtn.addEventListener('click', function () {
+    hideValidation();
     postToExtension({ command: 'newQuestion' });
   });
 }
 
 if (resetBtn) {
   resetBtn.addEventListener('click', function () {
-    postToExtension({ command: 'resetQuiz' });
+    openGenericModal('resetModal');
   });
 }
 
@@ -121,13 +233,43 @@ if (editAnswerBtn) {
 
 if (nextQuestionBtn) {
   nextQuestionBtn.addEventListener('click', function () {
+    hideValidation();
     postToExtension({ command: 'newQuestion' });
   });
 }
 
 if (reviewResetBtn) {
   reviewResetBtn.addEventListener('click', function () {
+    openGenericModal('resetModal');
+  });
+}
+
+var confirmResetBtn = document.getElementById('confirmResetBtn');
+if (confirmResetBtn) {
+  confirmResetBtn.addEventListener('click', function() {
+    closeGenericModal('resetModal');
+    hideValidation();
     postToExtension({ command: 'resetQuiz' });
+  });
+}
+
+if (hintClose) {
+  hintClose.addEventListener('click', function () {
+    if (hintBox) hintBox.classList.remove('visible');
+  });
+}
+
+if (closeTip) {
+  closeTip.addEventListener('click', function () {
+    if (selectionTip) selectionTip.classList.add('hidden');
+  });
+}
+
+if (answerInput) {
+  answerInput.addEventListener('input', function () {
+    if (isAnswerValid(answerInput.value)) {
+      hideValidation();
+    }
   });
 }
 
@@ -147,49 +289,82 @@ document.addEventListener('keydown', function (e) {
   }
 });
 
-function updateProgressBar(got, missed) {
-  var total = got + missed;
-  if (total === 0) {
-    if (progressSection) progressSection.classList.remove('visible');
-    return;
-  }
-
-  if (progressSection) progressSection.classList.add('visible');
-  if (progressCount) progressCount.textContent = total + ' reviewed';
-
-  var gotPct = Math.round((got / total) * 100);
-  var missedPct = 100 - gotPct;
-
-  if (progressGotIt) progressGotIt.style.width = gotPct + '%';
-  if (progressMissedIt) progressMissedIt.style.width = missedPct + '%';
-  if (statGotIt) statGotIt.textContent = '\u2713 ' + got + ' got it';
-  if (statMissedIt) statMissedIt.textContent = '\u2717 ' + missed + ' missed it';
+var closeButtons = document.querySelectorAll('.modal-close');
+for (var i = 0; i < closeButtons.length; i++) {
+  closeButtons[i].addEventListener('click', function(e) {
+    var targetId = e.currentTarget.getAttribute('data-target');
+    if (targetId) closeGenericModal(targetId);
+  });
 }
 
-var loadingMessages = ['Thinking...', 'Reading code...', 'Analyzing logic...', 'Generating...'];
+if (modalPrevBtn) {
+  modalPrevBtn.addEventListener('click', function() {
+    if (currentModalIndex > 0) openSessionModal(currentModalIndex - 1);
+  });
+}
+
+if (modalNextBtn) {
+  modalNextBtn.addEventListener('click', function() {
+    if (currentModalIndex < sessionEntries.length - 1) openSessionModal(currentModalIndex + 1);
+  });
+}
+
+var showAboutBtn = document.getElementById('showAboutBtn');
+if (showAboutBtn) {
+  showAboutBtn.addEventListener('click', function() { openGenericModal('aboutModal'); });
+}
+
+var showHelpBtn = document.getElementById('showHelpBtn');
+if (showHelpBtn) {
+  showHelpBtn.addEventListener('click', function() { openGenericModal('helpModal'); });
+}
+
+var showChangelogBtn = document.getElementById('showChangelogBtn');
+if (showChangelogBtn) {
+  showChangelogBtn.addEventListener('click', function() { openGenericModal('changelogModal'); });
+}
+
+// --- Loading Messages ---
+
+var loadingOverlay = document.getElementById('loadingOverlay');
+var loadingText = document.getElementById('loadingText');
+
+var loadingMessageContexts = {
+  default: ['Thinking...', 'Reading code...', 'Analyzing logic...', 'Generating...'],
+  hint: ['Analyzing code logic...', 'Generating conceptual hint...', 'Formulating guidance...'],
+  grade: ['Reading your explanation...', 'Comparing against code intent...', 'Evaluating comprehension...', 'Finalizing feedback...'],
+  initial: ['Reading selected code...', 'Understanding architecture...', 'Selecting pedagogical angle...', 'Drafting question...'],
+  next: ['Checking session history...', 'Analyzing code again...', 'Drafting new question...']
+};
+var currentLoadingMessages = loadingMessageContexts.default;
+
 var loadingInterval = null;
 var loadingIndex = 0;
+
+// --- Message Handler ---
 
 window.addEventListener('message', function (event) {
   var msg = event.data || {};
 
   if (msg.command === 'setLoading') {
     var on = Boolean(msg.loading);
+    var type = msg.loadingType || 'default';
 
-    if (loading) {
-      loading.classList.toggle('visible', on);
+    if (loadingOverlay) {
       if (on) {
+        currentLoadingMessages = loadingMessageContexts[type] || loadingMessageContexts.default;
+        loadingOverlay.classList.add('visible');
         loadingIndex = 0;
-        loading.textContent = loadingMessages[loadingIndex];
-        safeScrollIntoView(loading);
+        if (loadingText) loadingText.textContent = currentLoadingMessages[loadingIndex];
 
         if (loadingInterval) clearInterval(loadingInterval);
 
         loadingInterval = setInterval(function () {
-          loadingIndex = (loadingIndex + 1) % loadingMessages.length;
-          loading.textContent = loadingMessages[loadingIndex];
-        }, 2500);
+          loadingIndex = (loadingIndex + 1) % currentLoadingMessages.length;
+          if (loadingText) loadingText.textContent = currentLoadingMessages[loadingIndex];
+        }, 2200);
       } else {
+        loadingOverlay.classList.remove('visible');
         if (loadingInterval) {
           clearInterval(loadingInterval);
           loadingInterval = null;
@@ -205,11 +380,13 @@ window.addEventListener('message', function (event) {
   }
 
   if (msg.command === 'updateQuestion') {
-    if (questionText) questionText.textContent = String(msg.question || '');
+    currentQuestionText = String(msg.question || '');
+    if (questionText) questionText.textContent = currentQuestionText;
     if (answerInput) answerInput.value = '';
     if (hintText) hintText.textContent = '';
     if (hintBox) hintBox.classList.remove('visible');
     hideReview();
+    hideValidation();
     expandInput();
     if (result) {
       result.textContent = '';
@@ -222,7 +399,10 @@ window.addEventListener('message', function (event) {
     if (hintText) hintText.textContent = '';
     if (hintBox) hintBox.classList.remove('visible');
     hideReview();
+    hideValidation();
     expandInput();
+    sessionEntries = [];
+    renderSessionLog();
     if (result) {
       result.textContent = '';
       result.className = 'result-box';
@@ -232,12 +412,6 @@ window.addEventListener('message', function (event) {
   if (msg.command === 'showHint') {
     if (hintText) hintText.textContent = msg.hint || '';
     if (hintBox) hintBox.classList.add('visible');
-  }
-
-  if (msg.command === 'updateHistoryCount') {
-    if (historyCount) {
-      historyCount.textContent = String(Number(msg.count || 0));
-    }
   }
 
   if (msg.command === 'showResult') {
@@ -251,8 +425,10 @@ window.addEventListener('message', function (event) {
   }
 
   if (msg.command === 'showReview') {
-    if (userAnswerReview) userAnswerReview.textContent = String(msg.userAnswer || '');
-    if (explanationReview) explanationReview.textContent = String(msg.explanation || '');
+    currentUserAnswer = String(msg.userAnswer || '');
+    currentExplanation = String(msg.explanation || '');
+    if (userAnswerReview) userAnswerReview.textContent = currentUserAnswer;
+    if (explanationReview) explanationReview.textContent = currentExplanation;
     if (reviewBox) reviewBox.classList.add('visible');
     if (selfGradeActions) selfGradeActions.classList.add('visible');
     if (gotItBtn) gotItBtn.disabled = false;
@@ -266,22 +442,21 @@ window.addEventListener('message', function (event) {
   }
 
   if (msg.command === 'showSelfGrade') {
-    var got = Number(msg.gotItCount || 0);
-    var missed = Number(msg.missedItCount || 0);
-
     if (msg.result === 'got-it' && selfGradeStatus) {
       selfGradeStatus.className = 'self-grade-status visible got-it';
       selfGradeStatus.innerHTML =
-        '<span class="grade-badge got-it">\\u2713 Got it</span><br>' +
-        'Nice! You understood this concept correctly.';
+        '<span class="grade-badge got-it">GOT IT</span><br>' +
+        'Nice \u2014 you understood this concept correctly.';
+      addSessionEntry(currentQuestionText, 'got-it', currentUserAnswer, currentExplanation);
     } else if (msg.result === 'missed-it' && selfGradeStatus) {
       selfGradeStatus.className = 'self-grade-status visible missed-it';
       selfGradeStatus.innerHTML =
-        '<span class="grade-badge missed-it">\\u2717 Missed it</span><br>' +
-        'No worries \\u2014 review the explanation and try a new question.';
+        '<span class="grade-badge missed-it">MISSED</span><br>' +
+        'No worries \u2014 review the explanation and try a new question.';
+      addSessionEntry(currentQuestionText, 'missed-it', currentUserAnswer, currentExplanation);
     } else if (msg.result === 'reset' && selfGradeStatus) {
       selfGradeStatus.className = 'self-grade-status visible reset';
-      selfGradeStatus.innerHTML = 'Progress reset. Start fresh!';
+      selfGradeStatus.innerHTML = 'Session reset. Start fresh.';
     }
 
     if (gotItBtn) gotItBtn.disabled = true;
@@ -290,7 +465,5 @@ window.addEventListener('message', function (event) {
     if (reviewActions && msg.result !== 'reset') {
       reviewActions.classList.add('visible');
     }
-
-    updateProgressBar(got, missed);
   }
 });

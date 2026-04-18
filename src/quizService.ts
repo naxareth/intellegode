@@ -19,6 +19,8 @@ const QUESTION_HISTORY_WINDOW = 12; // Increased from 4 to use full recent histo
 const MAX_SELECTED_SNIPPET_CHARS = 2000;
 const MAX_FILE_CONTEXT_CHARS = 1500;
 const QUESTION_HINT_NUM_CTX = 3072;
+const DEBUG = process.env.INTELLEGODE_DEBUG === '1';
+const debugLog = (...args: unknown[]): void => { if (DEBUG) { console.warn(...args); } };
 
 type QuestionFocusMode = 'behavior' | 'mechanism' | 'failure' | 'tradeoff';
 
@@ -36,10 +38,10 @@ export async function generateQuizQuestion(
     let lastRepaired = '';
 
     const wasSnippetTrimmed = selectedCode.trim().length > MAX_SELECTED_SNIPPET_CHARS;
-    console.warn(
+    debugLog(
         `[INTELLEGODE][QUESTION INPUT] snippetChars=${selectedSnippetContext.length} snippetTrimmed=${wasSnippetTrimmed} fileContextChars=${fileContext.length} recentQuestions=${seenQuestions.length}`
     );
-    console.warn(`[INTELLEGODE][HIGHLIGHTED CODE]\n${selectedSnippetContext}`);
+    debugLog(`[INTELLEGODE][HIGHLIGHTED CODE]\n${selectedSnippetContext}`);
 
     for (let attempt = 0; attempt < MAX_QUESTION_ATTEMPTS; attempt += 1) {
         const currentAttemptSeen: string[] = [];
@@ -60,13 +62,13 @@ export async function generateQuizQuestion(
         const firstIsGrounded = normalizedFirst ? isQuestionGroundedInSnippet(normalizedFirst, selectedSnippetContext) : false;
         if (normalizedFirst && !firstIsRepeated && firstIsGrounded) {
             seenQuestions.push(normalizedFirst);
-            console.warn(`[INTELLEGODE][QUESTION FINAL][first] ${normalizedFirst}`);
+            debugLog(`[INTELLEGODE][QUESTION FINAL][first] ${normalizedFirst}`);
             return normalizedFirst;
         }
 
         // Reject repeated questions, even if grounded -- always attempt repair first
         if (normalizedFirst && (firstIsRepeated || !firstIsGrounded)) {
-            console.warn(
+            debugLog(
                 `[INTELLEGODE][QUESTION REJECT][first] repeated=${firstIsRepeated} grounded=${firstIsGrounded} question=${normalizedFirst}`
             );
         }
@@ -82,7 +84,7 @@ export async function generateQuizQuestion(
             normalizedPreviousRepaired &&
             normalizeQuestionForComparison(normalizedPreviousFirst) === normalizeQuestionForComparison(normalizedPreviousRepaired)
         ) {
-            console.warn(
+            debugLog(
                 `[INTELLEGODE][QUESTION REJECT] skipping repair because previous first and repaired outputs were duplicates: ${normalizedPreviousFirst}`
             );
             break;
@@ -103,13 +105,13 @@ export async function generateQuizQuestion(
         const repairedIsGrounded = normalizedRepaired ? isQuestionGroundedInSnippet(normalizedRepaired, selectedSnippetContext) : false;
         if (normalizedRepaired && !repairedIsRepeated && repairedIsGrounded) {
             seenQuestions.push(normalizedRepaired);
-            console.warn(`[INTELLEGODE][QUESTION FINAL][repair] ${normalizedRepaired}`);
+            debugLog(`[INTELLEGODE][QUESTION FINAL][repair] ${normalizedRepaired}`);
             return normalizedRepaired;
         }
 
         // Reject repeated questions, even if grounded -- escalate to fallback
         if (normalizedRepaired && (repairedIsRepeated || !repairedIsGrounded)) {
-            console.warn(
+            debugLog(
                 `[INTELLEGODE][QUESTION REJECT][repair] repeated=${repairedIsRepeated} grounded=${repairedIsGrounded} question=${normalizedRepaired}`
             );
         }
@@ -123,7 +125,7 @@ export async function generateQuizQuestion(
             normalizedRepaired &&
             normalizeQuestionForComparison(normalizedFirst) === normalizeQuestionForComparison(normalizedRepaired)
         ) {
-            console.warn(
+            debugLog(
                 `[INTELLEGODE][QUESTION REJECT] first and repaired outputs matched after normalization: ${normalizedFirst}`
             );
             break;
@@ -131,8 +133,8 @@ export async function generateQuizQuestion(
     }
 
     const fallbackQuestion = buildFallbackQuestion(selectedSnippetContext, seenQuestions, focusMode);
-    console.warn('[INTELLEGODE][QUESTION FALLBACK][raw rejected] first=', lastFirst, 'repair=', lastRepaired);
-    console.warn(`[INTELLEGODE][QUESTION FINAL][fallback] ${fallbackQuestion}`);
+    debugLog('[INTELLEGODE][QUESTION FALLBACK][raw rejected] first=', lastFirst, 'repair=', lastRepaired);
+    debugLog(`[INTELLEGODE][QUESTION FINAL][fallback] ${fallbackQuestion}`);
     return fallbackQuestion;
 }
 
@@ -404,30 +406,36 @@ export async function generateHint(code: string, question: string, ollamaCaller:
         return staticHint;
     }
 
-    const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS, QUESTION_HINT_NUM_CTX);
-    const normalizedFirst = normalizeHintOutput(first);
-    if (normalizedFirst) {
-        return normalizedFirst;
+    try {
+        const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS, QUESTION_HINT_NUM_CTX);
+        const normalizedFirst = normalizeHintOutput(first);
+        if (normalizedFirst) {
+            return normalizedFirst;
+        }
+
+        const repaired = await ollamaCaller(
+            buildHintRepairPrompt(first, question),
+            QUIZ_MODEL,
+            120,
+            HINT_SECOND_ATTEMPT_TIMEOUT_MS,
+            QUESTION_HINT_NUM_CTX
+        );
+        const normalizedRepaired = normalizeHintOutput(repaired);
+        if (normalizedRepaired) {
+            return normalizedRepaired;
+        }
+
+        debugLog('Raw LLM Attempt:', first, repaired);
+    } catch (error) {
+        debugLog('Hint LLM failed or timed out. Falling back to static hint.', error);
     }
 
-    const repaired = await ollamaCaller(
-        buildHintRepairPrompt(first, question),
-        QUIZ_MODEL,
-        120,
-        HINT_SECOND_ATTEMPT_TIMEOUT_MS,
-        QUESTION_HINT_NUM_CTX
-    );
-    const normalizedRepaired = normalizeHintOutput(repaired);
-    if (normalizedRepaired) {
-        return normalizedRepaired;
-    }
-
-    console.warn('Raw LLM Attempt:', first, repaired);
     return buildFallbackHint(code, question);
 }
 
-function preferStaticHint(hint: string): boolean {
-    return hint.trim().length > 0;
+function preferStaticHint(_hint: string): boolean {
+    // Always call the LLM for hints — the static fallback is only used when the LLM fails.
+    return false;
 }
 
 export async function evaluateAnswer(
@@ -459,7 +467,7 @@ export async function evaluateAnswer(
         return normalizedInitial;
     }
 
-    console.warn('Raw LLM Attempt:', initial, repaired);
+    debugLog('Raw LLM Attempt:', initial, repaired);
     return buildGroundedFallbackExplanation(code, question);
 }
 
@@ -486,14 +494,10 @@ export function normalizeHintOutput(raw: string): string | null {
         .replace(/```[\s\S]*?```/g, ' ')
         .replace(/\r?\n+/g, ' ')
         .replace(/\s+/g, ' ')
+        .replace(/^\s*(Hint:|HINT:|Answer:)\s*/i, '') // Strip typical LLM prefixes
         .trim();
     if (!flattened) {
         return null;
-    }
-
-    const sentenceMatch = flattened.match(/[^.!?]+[.!?]/);
-    if (sentenceMatch && sentenceMatch[0]) {
-        return sentenceMatch[0].trim();
     }
 
     return flattened;
@@ -508,33 +512,35 @@ export function isContextuallyRelevant(feedback: string, _question: string, _cod
 }
 
 function isQuestionGroundedInSnippet(question: string, selectedCode: string): boolean {
+    // First gate: reject patently generic questions regardless of code content
     if (isLikelyGenericQuestion(question)) {
         return false;
     }
 
     const snippetIdentifiers = extractMeaningfulIdentifiers(selectedCode);
-    if (snippetIdentifiers.size === 0) {
+
+    // If the snippet itself has very few unique identifiers (e.g. a short guard clause),
+    // we can't demand identifier overlap — trust the question passed the generic check above.
+    if (snippetIdentifiers.size < 3) {
         return true;
     }
 
     const questionIdentifiers = extractMeaningfulIdentifiers(question);
+
+    // If the question has no meaningful identifiers but isn't generic, it's likely asking
+    // a conceptual WHY/HOW question — those are valid; don't block them.
     if (questionIdentifiers.size === 0) {
-        return false;
+        return true;
     }
 
-    let overlapCount = 0;
-
+    // Require at least one identifier overlap for questions on larger snippets
     for (const identifier of questionIdentifiers) {
         if (snippetIdentifiers.has(identifier)) {
-            overlapCount += 1;
+            return true;
         }
     }
 
-    if (overlapCount === 0) {
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 function isLikelyGenericQuestion(question: string): boolean {
@@ -641,48 +647,49 @@ function buildFallbackHint(code: string, question: string): string {
     const signals = collectCodeSignals(code);
 
     if ((lowered.includes('error') || lowered.includes('failure') || lowered.includes('catch')) && (signals.hasTryCatch || signals.hasFallbackDefault)) {
-        return 'Focus on what can fail in the main path and how the fallback path preserves a usable return contract.';
+        return 'Think about what could go wrong in the main path and what the code does to keep things running when it does.';
     }
 
     if ((lowered.includes('condition') || lowered.includes('branch') || lowered.includes('decision')) && signals.hasCondition) {
-        return 'Look for the single check that decides which path executes and what state each path guarantees.';
+        return 'Consider which single check determines the two different outcomes and why each path matters.';
     }
 
     if ((lowered.includes('loop') || lowered.includes('iteration') || lowered.includes('each')) && (signals.hasLoop || signals.hasTransformation)) {
-        return 'Track what changes on each pass and how those small changes accumulate into the final output.';
+        return 'Notice what accumulates or changes on every pass and how those small steps build the final result.';
     }
 
     if ((lowered.includes('return') || lowered.includes('output') || lowered.includes('default')) && signals.hasReturn) {
-        return 'Look at the output contract and ask why this shape is safer for callers than returning raw intermediate state.';
+        return 'Ask yourself why the output is shaped this way instead of returning raw intermediate data.';
     }
 
     if ((lowered.includes('async') || lowered.includes('await') || lowered.includes('request')) && signals.hasAsync) {
-        return 'Identify which step must finish before the rest of the snippet can produce a correct result.';
+        return 'Think about which step absolutely must complete before the rest of the logic can produce a correct result.';
     }
 
     if (signals.hasCondition) {
-        return 'Focus on the decision point that gates the rest of the logic and why that gate exists.';
+        return 'Consider the decision point that controls which path runs and what would happen if it were removed.';
     }
 
     if (signals.hasTransformation || signals.hasLoop) {
-        return 'Follow the data shape from start to finish and note where it is transformed into the final result.';
+        return 'Trace the data from its starting shape to its final form and notice where the key transformation happens.';
     }
 
-    return 'Focus on the one operation this snippet performs that the rest of the flow depends on being correct.';
+    return 'Ask yourself what single operation in this snippet makes the biggest difference to the final outcome.';
 }
 
 function buildHintRepairPrompt(rawOutput: string, question: string): string {
     return [
-        'Rewrite this into exactly one concise conceptual fill-in-the-blank hint for the learner.',
+        'Rewrite this into a concise, natural-sounding hint for the learner.',
         'STRICT RULES:',
-        '- One sentence only, ending with a period.',
-        '- Use this structure: "Focus on how ____ affects ____ before ____."',
-        '- Keep the blanks behavior-focused and directly relevant to the question context.',
+        '- Keep it to 1-2 short sentences.',
+        '- Do NOT reveal the answer or name code identifiers directly.',
+        '- Point toward the concept or pattern the learner should think about logically.',
+        '- Do NOT start with "Focus on how" — vary the phrasing naturally like a helpful mentor.',
         '',
         'Question context:',
         question,
         '',
-        'Original hint output:',
+        'Original output to fix:',
         rawOutput
     ].join('\n');
 }

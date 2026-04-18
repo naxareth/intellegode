@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizService';
 import { QuizWebviewMessage } from './types';
 import { getQuizWebviewHtml } from './quizWebview';
@@ -33,14 +35,24 @@ export async function startQuizSession(
 		...globalRecentQuestions.slice(-4)
 	];
 	const historyLoadedCount = askedQuestions.length;
-	
-	// Log what's being loaded for debugging
-	console.warn(
-		`[INTELLEGODE][HISTORY] selectionSpecific=${selectionHistory.length} (using ${Math.min(selectionHistory.length, MAX_SELECTION_QUESTION_MEMORY)}) + globalRecent=${Math.min(globalRecentQuestions.length, 4)} = total=${historyLoadedCount}`
-	);
 	let gotItCount = 0;
 	let missedItCount = 0;
 	const showSnippetLengthWarning = selectedCode.trim().length > 800;
+
+	// Load extension metadata
+    const extensionId = 'naxareth.intellegode';
+    const extension = vscode.extensions.getExtension(extensionId);
+    const version = extension?.packageJSON?.version ?? '0.0.1';
+    
+    let changelogContent = 'Changelog not found.';
+    try {
+        const changelogPath = path.join(context.extensionPath, 'CHANGELOG.md');
+        if (fs.existsSync(changelogPath)) {
+            changelogContent = fs.readFileSync(changelogPath, 'utf8');
+        }
+    } catch(e) {
+        // ignore
+    }
 
 	// Show loading state immediately so user knows something is happening
 	const loadingHtml = getQuizWebviewHtml(
@@ -48,13 +60,15 @@ export async function startQuizSession(
 		context.extensionUri,
 		'Loading...',
 		showSnippetLengthWarning,
-		historyLoadedCount
+		historyLoadedCount,
+        version,
+        changelogContent,
+        true // isInitialLoading
 	);
 	panel.webview.html = loadingHtml;
 
 	// Generate question in background
 	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
-	console.warn(`[INTELLEGODE][UI QUESTION][initial] ${currentQuestion}`);
 	askedQuestions.push(currentQuestion);
 	await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 
@@ -64,7 +78,10 @@ export async function startQuizSession(
 		context.extensionUri,
 		currentQuestion,
 		showSnippetLengthWarning,
-		historyLoadedCount
+		historyLoadedCount,
+        version,
+        changelogContent,
+        false // isInitialLoading
 	);
 	panel.webview.html = questionHtml;
 
@@ -80,7 +97,7 @@ export async function startQuizSession(
 				return;
 			}
 
-			panel.webview.postMessage({ command: 'setLoading', loading: true });
+			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'grade' });
 			try {
 				const explanation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer, evaluatorModel);
 				panel.webview.postMessage({
@@ -100,7 +117,7 @@ export async function startQuizSession(
 		}
 
 		if (message.command === 'requestHint') {
-			panel.webview.postMessage({ command: 'setLoading', loading: true });
+			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'hint' });
 			try {
 				const hint = await generateHint(selectedCode, currentQuestion);
 				panel.webview.postMessage({ command: 'showHint', hint });
@@ -116,17 +133,15 @@ export async function startQuizSession(
 		}
 
 		if (message.command === 'newQuestion') {
-			panel.webview.postMessage({ command: 'setLoading', loading: true });
+			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'next' });
 			try {
 				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
-				console.warn(`[INTELLEGODE][UI QUESTION][newQuestion] ${currentQuestion}`);
 				askedQuestions.push(currentQuestion);
 				if (askedQuestions.length > 12) {
 					askedQuestions.splice(0, askedQuestions.length - 12);
 				}
 				await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 				panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
-				panel.webview.postMessage({ command: 'updateHistoryCount', count: askedQuestions.length });
 			} catch (error) {
 				const friendlyMessage = getUserFriendlyErrorMessage(error);
 				panel.webview.postMessage({
@@ -146,7 +161,6 @@ export async function startQuizSession(
 			askedQuestions.push(currentQuestion);
 			await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 			panel.webview.postMessage({ command: 'resetQuiz' });
-			panel.webview.postMessage({ command: 'updateHistoryCount', count: askedQuestions.length });
 			panel.webview.postMessage({
 				command: 'showSelfGrade',
 				result: 'reset',

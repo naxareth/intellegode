@@ -1,14 +1,21 @@
 {
   "name": "intellegode",
-  "displayName": "intellegode",
+  "displayName": "Intellegode",
   "description": "Fight vibe coding. Understand your own code.",
   "version": "0.0.1",
+  "publisher": "naxareth",
+  "icon": "images/logo.png",
   "engines": {
     "vscode": "^1.110.0"
   },
   "categories": [
+    "Education",
     "Other"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/naxareth/intellegode.git"
+  },
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {

@@ -58,8 +58,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 		try {
 			const panel = vscode.window.createWebviewPanel(
-				'intellegodeQuizPanel',
-				'Intellegode Quiz',
+				'intellegodePanel',
+				'Intellegode',
 				vscode.ViewColumn.Beside,
 				{ enableScripts: true }
 			);
