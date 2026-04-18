@@ -467,7 +467,7 @@ export async function evaluateAnswer(
         return normalizedInitial;
     }
 
-    console.warn('Raw LLM Attempt:', initial, repaired);
+    debugLog('Raw LLM Attempt:', initial, repaired);
     return buildGroundedFallbackExplanation(code, question);
 }
 

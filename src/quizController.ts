@@ -35,11 +35,6 @@ export async function startQuizSession(
 		...globalRecentQuestions.slice(-4)
 	];
 	const historyLoadedCount = askedQuestions.length;
-	
-	// Log what's being loaded for debugging
-	console.warn(
-		`[INTELLEGODE][HISTORY] selectionSpecific=${selectionHistory.length} (using ${Math.min(selectionHistory.length, MAX_SELECTION_QUESTION_MEMORY)}) + globalRecent=${Math.min(globalRecentQuestions.length, 4)} = total=${historyLoadedCount}`
-	);
 	let gotItCount = 0;
 	let missedItCount = 0;
 	const showSnippetLengthWarning = selectedCode.trim().length > 800;
@@ -74,7 +69,6 @@ export async function startQuizSession(
 
 	// Generate question in background
 	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
-	console.warn(`[INTELLEGODE][UI QUESTION][initial] ${currentQuestion}`);
 	askedQuestions.push(currentQuestion);
 	await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 
@@ -142,7 +136,6 @@ export async function startQuizSession(
 			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'next' });
 			try {
 				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
-				console.warn(`[INTELLEGODE][UI QUESTION][newQuestion] ${currentQuestion}`);
 				askedQuestions.push(currentQuestion);
 				if (askedQuestions.length > 12) {
 					askedQuestions.splice(0, askedQuestions.length - 12);

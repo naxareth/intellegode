@@ -20,11 +20,8 @@ Intellegode is a VS Code extension that uses a local LLM to quiz you on code you
 
 ## Setup
 
-**1. Clone the repo**
-```bash
-git clone https://github.com/naxareth/intellegode.git
-cd intellegode
-```
+**1. Install the Extension**
+Search for **Intellegode** in the VS Code Extensions Marketplace and click Install.
 
 **2. Start Ollama**
 
@@ -50,14 +47,9 @@ If you run Ollama locally:
 ollama pull qwen3.5:4b
 ```
 
-**4. Install dependencies**
-```bash
-npm install
-```
-
 **5. Run the extension**
 
-Press `F5` in VS Code to launch the Extension Development Host.
+Highlight a snippet of code and hit **Ctrl+Alt+Q** to start your session!
 
 ## Tech Stack
 
