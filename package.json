@@ -4,6 +4,7 @@
   "description": "Fight vibe coding. Understand your own code.",
   "version": "0.0.1",
   "publisher": "naxareth",
+  "icon": "images/logo.png",
   "engines": {
     "vscode": "^1.110.0"
   },

@@ -12,6 +12,7 @@ export function getQuizWebviewHtml(
 ): string {
 	const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'styles.css'));
 	const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'main.js'));
+	const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'images', 'logo.png'));
 	const nonce = getNonce();
 	const csp = [
 		"default-src 'none'",
@@ -32,7 +33,7 @@ export function getQuizWebviewHtml(
 <body>
 
   <div class="header">
-    <div class="logo">ig</div>
+    <img src="${logoUri}" alt="Intellegode Logo" style="width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0;" />
     <span class="brand">INTELLEGODE <span class="version">v${version}</span></span>
   </div>
 
