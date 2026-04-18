@@ -406,25 +406,30 @@ export async function generateHint(code: string, question: string, ollamaCaller:
         return staticHint;
     }
 
-    const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS, QUESTION_HINT_NUM_CTX);
-    const normalizedFirst = normalizeHintOutput(first);
-    if (normalizedFirst) {
-        return normalizedFirst;
+    try {
+        const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS, QUESTION_HINT_NUM_CTX);
+        const normalizedFirst = normalizeHintOutput(first);
+        if (normalizedFirst) {
+            return normalizedFirst;
+        }
+
+        const repaired = await ollamaCaller(
+            buildHintRepairPrompt(first, question),
+            QUIZ_MODEL,
+            120,
+            HINT_SECOND_ATTEMPT_TIMEOUT_MS,
+            QUESTION_HINT_NUM_CTX
+        );
+        const normalizedRepaired = normalizeHintOutput(repaired);
+        if (normalizedRepaired) {
+            return normalizedRepaired;
+        }
+
+        debugLog('Raw LLM Attempt:', first, repaired);
+    } catch (error) {
+        debugLog('Hint LLM failed or timed out. Falling back to static hint.', error);
     }
 
-    const repaired = await ollamaCaller(
-        buildHintRepairPrompt(first, question),
-        QUIZ_MODEL,
-        120,
-        HINT_SECOND_ATTEMPT_TIMEOUT_MS,
-        QUESTION_HINT_NUM_CTX
-    );
-    const normalizedRepaired = normalizeHintOutput(repaired);
-    if (normalizedRepaired) {
-        return normalizedRepaired;
-    }
-
-    console.warn('Raw LLM Attempt:', first, repaired);
     return buildFallbackHint(code, question);
 }
 
