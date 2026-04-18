@@ -3,7 +3,7 @@
   "displayName": "Intellegode",
   "description": "Fight vibe coding. Understand your own code.",
   "version": "0.0.1",
-  "publisher": "YOUR_PUBLISHER_ID",
+  "publisher": "naxareth",
   "engines": {
     "vscode": "^1.110.0"
   },
