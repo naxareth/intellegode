@@ -166,15 +166,23 @@ export function getQuizWebviewHtml(
     </div>
   </div>
 
-  <div class="modal-wrapper" id="whyModal">
+  <div class="modal-wrapper" id="aboutModal">
     <div class="modal-content">
       <div class="modal-header">
-        <div class="modal-title">Why Intellegode?</div>
-        <button class="modal-close" data-target="whyModal">&times;</button>
+        <div class="modal-title">About Intellegode</div>
+        <button class="modal-close" data-target="aboutModal">&times;</button>
       </div>
       <div class="modal-body">
-        <p style="font-size: 13px; line-height: 1.5;">Passive reading of code is inefficient. According to pedagogical research, active recall and generative learning form the strongest memory pathways.</p>
-        <p style="font-size: 13px; line-height: 1.5;"><strong>Intellegode</strong> deliberately pauses your copy-pasting momentum and asks the critical "Why?" and "How?" questions behind the code you are interacting with, enforcing deep comprehension instead of superficial task completion.</p>
+        <div class="markdown-content">
+          <p><strong>Intellegode</strong> is an AI-powered educational pair-programmer designed to teach developers code concepts via interactive comprehension checks.</p>
+          
+          <h3>Why Intellegode?</h3>
+          <p>Passive reading of code is inefficient. According to pedagogical research, active recall and generative learning form the strongest memory pathways.</p>
+          <p>This extension deliberately pauses your copy-pasting momentum and asks the critical "Why?" and "How?" questions behind the code you are interacting with, enforcing deep comprehension instead of superficial task completion.</p>
+
+          <h3 style="margin-top: 24px;">Links</h3>
+          <p><a href="https://github.com/naxareth/intellegode">View Source code on GitHub</a></p>
+        </div>
       </div>
     </div>
   </div>
@@ -182,37 +190,44 @@ export function getQuizWebviewHtml(
   <div class="modal-wrapper" id="helpModal">
     <div class="modal-content">
       <div class="modal-header">
-        <div class="modal-title">Help & Usage</div>
+        <div class="modal-title">Help & Setup</div>
         <button class="modal-close" data-target="helpModal">&times;</button>
       </div>
       <div class="modal-body">
         <div class="markdown-content">
-          <h3>How to use</h3>
+          <h3>How to Setup</h3>
+          <ul>
+            <li>Ensure you have <a href="https://ollama.com/">Ollama</a> installed on your machine.</li>
+            <li>Pull the required model in your terminal: <code>ollama pull qwen3.5:4b</code> (or your configured default).</li>
+            <li>Ensure the Ollama server is running (usually runs automatically in the background, or start with <code>ollama serve</code>).</li>
+          </ul>
+
+          <h3>How to Use</h3>
           <ul>
             <li>Select a small code snippet (e.g. a single function, an if-block).</li>
             <li>Press <strong>Ctrl+Alt+Q</strong> (or Cmd+Option+Q on Mac) to generate a quiz.</li>
             <li>Type out your explanation of what the code does or why it's built that way.</li>
             <li>Submit to get AI feedback and learn from the correct explanation.</li>
           </ul>
+
+          <h3>Troubleshooting</h3>
+          <ul>
+            <li><strong>Ollama Error / Timeout</strong>: Ensure Ollama is running in your terminal (<code>ollama serve</code>) or via Docker. Check if you have the model pulled.</li>
+            <li><strong>Repetitive Questions</strong>: Maximize the selection! If you keep selecting just <code>const x = 5;</code>, there isn't much to ask.</li>
+          </ul>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="modal-wrapper" id="troubleshootingModal">
+  <div class="modal-wrapper" id="changelogModal">
     <div class="modal-content">
       <div class="modal-header">
-        <div class="modal-title">Troubleshooting</div>
-        <button class="modal-close" data-target="troubleshootingModal">&times;</button>
+        <div class="modal-title">Changelog</div>
+        <button class="modal-close" data-target="changelogModal">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="markdown-content">
-          <h3>Common Issues</h3>
-          <ul>
-            <li><strong>Ollama Error / Timeout</strong>: Ensure Ollama is running in your terminal (\\\`ollama serve\\\`) or via Docker. Check if you have the model pulled (\\\`ollama pull qwen3.5:4b\\\`).</li>
-            <li><strong>Repetitive Questions</strong>: Maximize the selection! If you keep selecting just \\\`const x = 5;\\\`, there isn't much to ask.</li>
-          </ul>
-        </div>
+        <div class="modal-text markdown-content">${renderSimpleMarkdown(changelogContent)}</div>
       </div>
     </div>
   </div>
@@ -221,15 +236,9 @@ export function getQuizWebviewHtml(
     <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 400px;">
       <button class="footer-link" id="showAboutBtn">About</button>
       <span class="footer-sep">&bull;</span>
-      <button class="footer-link" id="showWhyBtn">Why</button>
-      <span class="footer-sep">&bull;</span>
       <button class="footer-link" id="showHelpBtn">Help</button>
       <span class="footer-sep">&bull;</span>
-      <button class="footer-link" id="showTroubleshootingBtn">Troubleshooting</button>
-      <span class="footer-sep">&bull;</span>
       <button class="footer-link" id="showChangelogBtn">Changelog</button>
-      <span class="footer-sep">&bull;</span>
-      <a href="https://github.com/naxareth/intellegode" class="footer-link">GitHub</a>
     </div>
   </div>
 
