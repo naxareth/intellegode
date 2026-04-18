@@ -279,20 +279,44 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* --- Loading --- */
+/* --- Loading Overlay --- */
 
-.loading {
-  display: none;
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  backdrop-filter: blur(2px);
+}
+
+.loading-overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.loading-card {
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  padding: 16px 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
   font-family: var(--vscode-editor-font-family);
   font-size: 13px;
   color: var(--vscode-editor-foreground);
-  margin-top: 14px;
-  opacity: 0.8;
+  animation: fadeIn 0.15s ease;
 }
-
-.loading.visible { display: flex; }
 
 .spinner {
   animation: rotate 2s linear infinite;

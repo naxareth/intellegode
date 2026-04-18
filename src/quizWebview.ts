@@ -21,11 +21,10 @@ export function getQuizWebviewHtml(
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
   <title>Intellegode</title>
-  <link rel="stylesheet" href="${stylesUri}" />
+  <link rel="stylesheet" href="${stylesUri}?n=${nonce}" />
 </head>
 <body>
 
@@ -56,15 +55,16 @@ export function getQuizWebviewHtml(
       <button id="submit">Submit</button>
       <button id="hintBtn">Hint</button>
       <button id="newQuestionBtn">New question</button>
-      <button id="resetBtn">Reset</button>
     </div>
   </div>
 
-  <div class="loading" id="loading" style="display: none;">
-    <svg class="spinner" viewBox="0 0 50 50">
-      <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="4"></circle>
-    </svg>
-    <span id="loadingText">Thinking...</span>
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-card">
+      <svg class="spinner" viewBox="0 0 50 50">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="4"></circle>
+      </svg>
+      <span id="loadingText">Thinking...</span>
+    </div>
   </div>
 
   <div class="review-box" id="reviewBox">
@@ -122,7 +122,7 @@ export function getQuizWebviewHtml(
     </div>
   </div>
 
-  <script nonce="${nonce}" src="${scriptUri}"></script>
+  <script nonce="${nonce}" src="${scriptUri}?n=${nonce}"></script>
 </body>
 </html>`;
 }

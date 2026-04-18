@@ -87,6 +87,8 @@ export function buildHintPrompt(code: string, question: string): string {
 		'- Explain *what to look for* or conceptually *what is happening*, but do NOT give away the final answer.',
 		'- Guide their attention to the right part of the code or the right design pattern.',
 		'- You have full freedom in how you phrase the hint. Make it natural and helpful.',
+		'- ABSOLUTELY DO NOT start the hint with the phrase "Think about why...". Be creative.',
+		'- AVOID robotic and repetitive templates.',
 		'',
 		'Code:',
 		code,

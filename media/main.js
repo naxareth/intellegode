@@ -293,6 +293,7 @@ if (modalNextBtn) {
 
 // --- Loading Messages ---
 
+var loadingOverlay = document.getElementById('loadingOverlay');
 var loadingText = document.getElementById('loadingText');
 var loadingMessages = ['Thinking...', 'Reading code...', 'Analyzing logic...', 'Generating...'];
 var loadingInterval = null;
@@ -306,9 +307,9 @@ window.addEventListener('message', function (event) {
   if (msg.command === 'setLoading') {
     var on = Boolean(msg.loading);
 
-    if (loading) {
-      loading.classList.toggle('visible', on);
+    if (loadingOverlay) {
       if (on) {
+        loadingOverlay.classList.add('visible');
         loadingIndex = 0;
         if (loadingText) loadingText.textContent = loadingMessages[loadingIndex];
 
@@ -317,8 +318,9 @@ window.addEventListener('message', function (event) {
         loadingInterval = setInterval(function () {
           loadingIndex = (loadingIndex + 1) % loadingMessages.length;
           if (loadingText) loadingText.textContent = loadingMessages[loadingIndex];
-        }, 2500);
+        }, 2200);
       } else {
+        loadingOverlay.classList.remove('visible');
         if (loadingInterval) {
           clearInterval(loadingInterval);
           loadingInterval = null;
