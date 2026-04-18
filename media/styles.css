@@ -25,16 +25,12 @@ body {
 .logo {
   width: 28px;
   height: 28px;
-  background: var(--vscode-button-background);
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--vscode-editor-font-family);
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--vscode-button-foreground);
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .brand {

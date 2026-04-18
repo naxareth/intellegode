@@ -33,7 +33,9 @@ export function getQuizWebviewHtml(
 <body>
 
   <div class="header">
-    <img src="${logoUri}" alt="Intellegode Logo" style="width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0;" />
+    <div class="logo">
+      <img src="${logoUri}" alt="Intellegode Logo" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
+    </div>
     <span class="brand">INTELLEGODE <span class="version">v${version}</span></span>
   </div>
 
