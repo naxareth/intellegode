@@ -51,8 +51,21 @@ var sessionLog = document.getElementById('sessionLog');
 var sessionLogList = document.getElementById('sessionLogList');
 var sessionLogCount = document.getElementById('sessionLogCount');
 
+// Modal Elements
+var modalOverlay = document.getElementById('sessionModal');
+var modalClose = document.getElementById('modalClose');
+var modalQuestion = document.getElementById('modalQuestion');
+var modalAnswer = document.getElementById('modalAnswer');
+var modalExplanation = document.getElementById('modalExplanation');
+var modalPrevBtn = document.getElementById('modalPrevBtn');
+var modalNextBtn = document.getElementById('modalNextBtn');
+var modalPageCounter = document.getElementById('modalPageCounter');
+
 var sessionEntries = [];
 var currentQuestionText = questionText ? questionText.textContent : '';
+var currentUserAnswer = '';
+var currentExplanation = '';
+var currentModalIndex = 0;
 
 var MIN_ANSWER_WORDS = 3;
 
@@ -89,9 +102,29 @@ function isAnswerValid(text) {
   return words.length >= MIN_ANSWER_WORDS;
 }
 
-function addSessionEntry(question, grade) {
-  sessionEntries.push({ question: question, grade: grade });
+function addSessionEntry(question, grade, answer, explanation) {
+  sessionEntries.push({ question: question, grade: grade, answer: answer, explanation: explanation });
   renderSessionLog();
+}
+
+function openModal(index) {
+  if (!modalOverlay || index < 0 || index >= sessionEntries.length) return;
+  currentModalIndex = index;
+  var entry = sessionEntries[index];
+  
+  if (modalQuestion) modalQuestion.textContent = entry.question;
+  if (modalAnswer) modalAnswer.textContent = entry.answer;
+  if (modalExplanation) modalExplanation.textContent = entry.explanation;
+  if (modalPageCounter) modalPageCounter.textContent = (index + 1) + ' / ' + sessionEntries.length;
+  
+  if (modalPrevBtn) modalPrevBtn.disabled = index === 0;
+  if (modalNextBtn) modalNextBtn.disabled = index === sessionEntries.length - 1;
+  
+  modalOverlay.style.display = 'flex';
+}
+
+function closeModal() {
+  if (modalOverlay) modalOverlay.style.display = 'none';
 }
 
 function renderSessionLog() {
@@ -104,17 +137,27 @@ function renderSessionLog() {
   sessionLog.classList.add('visible');
   sessionLogCount.textContent = sessionEntries.length + ' reviewed';
 
-  var html = '';
+  sessionLogList.innerHTML = '';
+  // Render in reverse order (newest first)
   for (var i = sessionEntries.length - 1; i >= 0; i--) {
     var entry = sessionEntries[i];
     var badgeClass = entry.grade === 'got-it' ? 'got-it' : 'missed-it';
     var badgeText = entry.grade === 'got-it' ? 'GOT IT' : 'MISSED';
-    html += '<div class="session-log-item">';
-    html += '<span class="session-log-badge ' + badgeClass + '">' + badgeText + '</span>';
-    html += '<span class="session-log-question">' + escapeForHtml(entry.question) + '</span>';
-    html += '</div>';
+    
+    var el = document.createElement('div');
+    el.className = 'session-log-item';
+    el.innerHTML = '<span class="session-log-badge ' + badgeClass + '">' + badgeText + '</span>' +
+                   '<span class="session-log-question">' + escapeForHtml(entry.question) + '</span>';
+    
+    // Bind current loop index
+    (function(index) {
+      el.addEventListener('click', function() {
+        openModal(index);
+      });
+    })(i);
+    
+    sessionLogList.appendChild(el);
   }
-  sessionLogList.innerHTML = html;
 }
 
 function escapeForHtml(text) {
@@ -232,8 +275,25 @@ document.addEventListener('keydown', function (e) {
   }
 });
 
+if (modalClose) {
+  modalClose.addEventListener('click', closeModal);
+}
+
+if (modalPrevBtn) {
+  modalPrevBtn.addEventListener('click', function() {
+    if (currentModalIndex > 0) openModal(currentModalIndex - 1);
+  });
+}
+
+if (modalNextBtn) {
+  modalNextBtn.addEventListener('click', function() {
+    if (currentModalIndex < sessionEntries.length - 1) openModal(currentModalIndex + 1);
+  });
+}
+
 // --- Loading Messages ---
 
+var loadingText = document.getElementById('loadingText');
 var loadingMessages = ['Thinking...', 'Reading code...', 'Analyzing logic...', 'Generating...'];
 var loadingInterval = null;
 var loadingIndex = 0;
@@ -250,13 +310,13 @@ window.addEventListener('message', function (event) {
       loading.classList.toggle('visible', on);
       if (on) {
         loadingIndex = 0;
-        loading.textContent = loadingMessages[loadingIndex];
+        if (loadingText) loadingText.textContent = loadingMessages[loadingIndex];
 
         if (loadingInterval) clearInterval(loadingInterval);
 
         loadingInterval = setInterval(function () {
           loadingIndex = (loadingIndex + 1) % loadingMessages.length;
-          loading.textContent = loadingMessages[loadingIndex];
+          if (loadingText) loadingText.textContent = loadingMessages[loadingIndex];
         }, 2500);
       } else {
         if (loadingInterval) {
@@ -319,8 +379,10 @@ window.addEventListener('message', function (event) {
   }
 
   if (msg.command === 'showReview') {
-    if (userAnswerReview) userAnswerReview.textContent = String(msg.userAnswer || '');
-    if (explanationReview) explanationReview.textContent = String(msg.explanation || '');
+    currentUserAnswer = String(msg.userAnswer || '');
+    currentExplanation = String(msg.explanation || '');
+    if (userAnswerReview) userAnswerReview.textContent = currentUserAnswer;
+    if (explanationReview) explanationReview.textContent = currentExplanation;
     if (reviewBox) reviewBox.classList.add('visible');
     if (selfGradeActions) selfGradeActions.classList.add('visible');
     if (gotItBtn) gotItBtn.disabled = false;
@@ -339,13 +401,13 @@ window.addEventListener('message', function (event) {
       selfGradeStatus.innerHTML =
         '<span class="grade-badge got-it">GOT IT</span><br>' +
         'Nice \u2014 you understood this concept correctly.';
-      addSessionEntry(currentQuestionText, 'got-it');
+      addSessionEntry(currentQuestionText, 'got-it', currentUserAnswer, currentExplanation);
     } else if (msg.result === 'missed-it' && selfGradeStatus) {
       selfGradeStatus.className = 'self-grade-status visible missed-it';
       selfGradeStatus.innerHTML =
         '<span class="grade-badge missed-it">MISSED</span><br>' +
         'No worries \u2014 review the explanation and try a new question.';
-      addSessionEntry(currentQuestionText, 'missed-it');
+      addSessionEntry(currentQuestionText, 'missed-it', currentUserAnswer, currentExplanation);
     } else if (msg.result === 'reset' && selfGradeStatus) {
       selfGradeStatus.className = 'self-grade-status visible reset';
       selfGradeStatus.innerHTML = 'Session reset. Start fresh.';

@@ -494,14 +494,10 @@ export function normalizeHintOutput(raw: string): string | null {
         .replace(/```[\s\S]*?```/g, ' ')
         .replace(/\r?\n+/g, ' ')
         .replace(/\s+/g, ' ')
+        .replace(/^\s*(Hint:|HINT:|Answer:)\s*/i, '') // Strip typical LLM prefixes
         .trim();
     if (!flattened) {
         return null;
-    }
-
-    const sentenceMatch = flattened.match(/[^.!?]+[.!?]/);
-    if (sentenceMatch && sentenceMatch[0]) {
-        return sentenceMatch[0].trim();
     }
 
     return flattened;
@@ -683,17 +679,17 @@ function buildFallbackHint(code: string, question: string): string {
 
 function buildHintRepairPrompt(rawOutput: string, question: string): string {
     return [
-        'Rewrite this into exactly one concise conceptual hint for the learner.',
+        'Rewrite this into a concise, natural-sounding hint for the learner.',
         'STRICT RULES:',
-        '- One sentence only, ending with a period.',
-        '- Do NOT reveal the answer or name code identifiers.',
-        '- Point toward the concept or pattern the learner should think about.',
-        '- Do NOT start with "Focus on how" — vary the phrasing naturally.',
+        '- Keep it to 1-2 short sentences.',
+        '- Do NOT reveal the answer or name code identifiers directly.',
+        '- Point toward the concept or pattern the learner should think about logically.',
+        '- Do NOT start with "Focus on how" — vary the phrasing naturally like a helpful mentor.',
         '',
         'Question context:',
         question,
         '',
-        'Original hint output:',
+        'Original output to fix:',
         rawOutput
     ].join('\n');
 }

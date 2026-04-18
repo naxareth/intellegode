@@ -60,7 +60,12 @@ export function getQuizWebviewHtml(
     </div>
   </div>
 
-  <div class="loading" id="loading">Thinking...</div>
+  <div class="loading" id="loading" style="display: none;">
+    <svg class="spinner" viewBox="0 0 50 50">
+      <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="4"></circle>
+    </svg>
+    <span id="loadingText">Thinking...</span>
+  </div>
 
   <div class="review-box" id="reviewBox">
     <div class="review-grid">
@@ -87,12 +92,34 @@ export function getQuizWebviewHtml(
 
   <div class="result-box" id="result"></div>
 
-  <div class="session-log" id="sessionLog">
+  <div class="session-log" id="sessionLog" style="display: none;">
     <div class="session-log-header">
       <span class="session-log-title">Session Review</span>
       <span class="session-log-count" id="sessionLogCount">0 reviewed</span>
     </div>
     <div class="session-log-list" id="sessionLogList"></div>
+  </div>
+
+  <div class="modal-overlay" id="sessionModal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">Session Details</div>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-label">Question</div>
+        <div class="modal-text" id="modalQuestion"></div>
+        <div class="modal-label">Your Answer</div>
+        <div class="modal-text" id="modalAnswer"></div>
+        <div class="modal-label">Correct Explanation</div>
+        <div class="modal-text" id="modalExplanation"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="modalPrevBtn" class="modal-btn">Previous</button>
+        <span id="modalPageCounter">1 / 1</span>
+        <button id="modalNextBtn" class="modal-btn">Next</button>
+      </div>
+    </div>
   </div>
 
   <script nonce="${nonce}" src="${scriptUri}"></script>
