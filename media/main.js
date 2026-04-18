@@ -328,7 +328,16 @@ if (showChangelogBtn) {
 
 var loadingOverlay = document.getElementById('loadingOverlay');
 var loadingText = document.getElementById('loadingText');
-var loadingMessages = ['Thinking...', 'Reading code...', 'Analyzing logic...', 'Generating...'];
+
+var loadingMessageContexts = {
+  default: ['Thinking...', 'Reading code...', 'Analyzing logic...', 'Generating...'],
+  hint: ['Analyzing code logic...', 'Generating conceptual hint...', 'Formulating guidance...'],
+  grade: ['Reading your explanation...', 'Comparing against code intent...', 'Evaluating comprehension...', 'Finalizing feedback...'],
+  initial: ['Reading selected code...', 'Understanding architecture...', 'Selecting pedagogical angle...', 'Drafting question...'],
+  next: ['Checking session history...', 'Analyzing code again...', 'Drafting new question...']
+};
+var currentLoadingMessages = loadingMessageContexts.default;
+
 var loadingInterval = null;
 var loadingIndex = 0;
 
@@ -339,18 +348,20 @@ window.addEventListener('message', function (event) {
 
   if (msg.command === 'setLoading') {
     var on = Boolean(msg.loading);
+    var type = msg.loadingType || 'default';
 
     if (loadingOverlay) {
       if (on) {
+        currentLoadingMessages = loadingMessageContexts[type] || loadingMessageContexts.default;
         loadingOverlay.classList.add('visible');
         loadingIndex = 0;
-        if (loadingText) loadingText.textContent = loadingMessages[loadingIndex];
+        if (loadingText) loadingText.textContent = currentLoadingMessages[loadingIndex];
 
         if (loadingInterval) clearInterval(loadingInterval);
 
         loadingInterval = setInterval(function () {
-          loadingIndex = (loadingIndex + 1) % loadingMessages.length;
-          if (loadingText) loadingText.textContent = loadingMessages[loadingIndex];
+          loadingIndex = (loadingIndex + 1) % currentLoadingMessages.length;
+          if (loadingText) loadingText.textContent = currentLoadingMessages[loadingIndex];
         }, 2200);
       } else {
         loadingOverlay.classList.remove('visible');

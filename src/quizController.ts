@@ -103,7 +103,7 @@ export async function startQuizSession(
 				return;
 			}
 
-			panel.webview.postMessage({ command: 'setLoading', loading: true });
+			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'grade' });
 			try {
 				const explanation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer, evaluatorModel);
 				panel.webview.postMessage({
@@ -123,7 +123,7 @@ export async function startQuizSession(
 		}
 
 		if (message.command === 'requestHint') {
-			panel.webview.postMessage({ command: 'setLoading', loading: true });
+			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'hint' });
 			try {
 				const hint = await generateHint(selectedCode, currentQuestion);
 				panel.webview.postMessage({ command: 'showHint', hint });
@@ -139,7 +139,7 @@ export async function startQuizSession(
 		}
 
 		if (message.command === 'newQuestion') {
-			panel.webview.postMessage({ command: 'setLoading', loading: true });
+			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'next' });
 			try {
 				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
 				console.warn(`[INTELLEGODE][UI QUESTION][newQuestion] ${currentQuestion}`);
