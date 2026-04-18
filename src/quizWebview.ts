@@ -161,17 +161,76 @@ export function getQuizWebviewHtml(
         <button class="modal-close" data-target="changelogModal">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="modal-text markdown-content">${escapeHtml(changelogContent)}</div>
+        <div class="modal-text markdown-content">${renderSimpleMarkdown(changelogContent)}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-wrapper" id="whyModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">Why Intellegode?</div>
+        <button class="modal-close" data-target="whyModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; line-height: 1.5;">Passive reading of code is inefficient. According to pedagogical research, active recall and generative learning form the strongest memory pathways.</p>
+        <p style="font-size: 13px; line-height: 1.5;"><strong>Intellegode</strong> deliberately pauses your copy-pasting momentum and asks the critical "Why?" and "How?" questions behind the code you are interacting with, enforcing deep comprehension instead of superficial task completion.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-wrapper" id="helpModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">Help & Usage</div>
+        <button class="modal-close" data-target="helpModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="markdown-content">
+          <h3>How to use</h3>
+          <ul>
+            <li>Select a small code snippet (e.g. a single function, an if-block).</li>
+            <li>Press <strong>Ctrl+Alt+Q</strong> (or Cmd+Option+Q on Mac) to generate a quiz.</li>
+            <li>Type out your explanation of what the code does or why it's built that way.</li>
+            <li>Submit to get AI feedback and learn from the correct explanation.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-wrapper" id="troubleshootingModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">Troubleshooting</div>
+        <button class="modal-close" data-target="troubleshootingModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="markdown-content">
+          <h3>Common Issues</h3>
+          <ul>
+            <li><strong>Ollama Error / Timeout</strong>: Ensure Ollama is running in your terminal (\\\`ollama serve\\\`) or via Docker. Check if you have the model pulled (\\\`ollama pull qwen3.5:4b\\\`).</li>
+            <li><strong>Repetitive Questions</strong>: Maximize the selection! If you keep selecting just \\\`const x = 5;\\\`, there isn't much to ask.</li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>
 
   <div class="footer">
-    <button class="footer-link" id="showAboutBtn">About</button>
-    <span class="footer-sep">&bull;</span>
-    <button class="footer-link" id="showChangelogBtn">Changelog</button>
-    <span class="footer-sep">&bull;</span>
-    <a href="https://github.com/naxareth/intellegode" class="footer-link">GitHub</a>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 400px;">
+      <button class="footer-link" id="showAboutBtn">About</button>
+      <span class="footer-sep">&bull;</span>
+      <button class="footer-link" id="showWhyBtn">Why</button>
+      <span class="footer-sep">&bull;</span>
+      <button class="footer-link" id="showHelpBtn">Help</button>
+      <span class="footer-sep">&bull;</span>
+      <button class="footer-link" id="showTroubleshootingBtn">Troubleshooting</button>
+      <span class="footer-sep">&bull;</span>
+      <button class="footer-link" id="showChangelogBtn">Changelog</button>
+      <span class="footer-sep">&bull;</span>
+      <a href="https://github.com/naxareth/intellegode" class="footer-link">GitHub</a>
+    </div>
   </div>
 
   <script nonce="${nonce}" src="${scriptUri}?n=${nonce}"></script>
@@ -186,6 +245,27 @@ function escapeHtml(value: string): string {
 		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;')
 		.replace(/'/g, '&#39;');
+}
+
+function renderSimpleMarkdown(md: string): string {
+  let html = escapeHtml(md);
+  
+  // Headers
+  html = html.replace(/^###\s+(.*$)/gm, '<h3>$1</h3>');
+  html = html.replace(/^##\s+(.*$)/gm, '<h2>$1</h2>');
+  html = html.replace(/^#\s+(.*$)/gm, '<h1>$1</h1>');
+  
+  // Bold and Inline Code
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/`(.*?)`/g, '<code>$1</code>');
+  
+  // Lists
+  html = html.replace(/^\-\s+(.*$)/gm, '<li>$1</li>');
+  
+  // Line breaks for spacing between paragraphs
+  html = html.replace(/\n\n/g, '<br><br>');
+  
+  return html;
 }
 
 function getNonce(): string {

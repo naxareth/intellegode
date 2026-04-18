@@ -314,6 +314,21 @@ if (showAboutBtn) {
   showAboutBtn.addEventListener('click', function() { openGenericModal('aboutModal'); });
 }
 
+var showWhyBtn = document.getElementById('showWhyBtn');
+if (showWhyBtn) {
+  showWhyBtn.addEventListener('click', function() { openGenericModal('whyModal'); });
+}
+
+var showHelpBtn = document.getElementById('showHelpBtn');
+if (showHelpBtn) {
+  showHelpBtn.addEventListener('click', function() { openGenericModal('helpModal'); });
+}
+
+var showTroubleshootingBtn = document.getElementById('showTroubleshootingBtn');
+if (showTroubleshootingBtn) {
+  showTroubleshootingBtn.addEventListener('click', function() { openGenericModal('troubleshootingModal'); });
+}
+
 var showChangelogBtn = document.getElementById('showChangelogBtn');
 if (showChangelogBtn) {
   showChangelogBtn.addEventListener('click', function() { openGenericModal('changelogModal'); });

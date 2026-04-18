@@ -753,6 +753,36 @@ button:disabled {
   line-height: 1.6;
 }
 
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  color: var(--vscode-editor-foreground);
+  margin-top: 18px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.markdown-content h1 { font-size: 16px; border-bottom: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.1)); padding-bottom: 4px; }
+.markdown-content h2 { font-size: 14px; }
+.markdown-content h3 { font-size: 13px; }
+
+.markdown-content ul {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+
+.markdown-content li {
+  margin-bottom: 8px;
+}
+
+.markdown-content code {
+  background: var(--vscode-textCodeBlock-background, rgba(128,128,128,0.2));
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 11px;
+}
+
 /* --- Footer --- */
 
 .footer {
