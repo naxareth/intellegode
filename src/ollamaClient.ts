@@ -4,6 +4,8 @@ import { OllamaChatResponse } from './types';
 const PREFERRED_FALLBACK_MODELS = ['qwen3.5:4b', 'qwen3:4b', 'qwen2.5:3b'];
 const DEFAULT_NUM_CTX = 3072;
 const OLLAMA_REQUEST_TIMEOUT_OVERRIDE_MS = Number.parseInt(process.env.INTELLEGODE_OLLAMA_REQUEST_TIMEOUT_MS ?? '0', 10);
+const DEBUG = process.env.INTELLEGODE_DEBUG === '1';
+const debugLog = (...args: unknown[]): void => { if (DEBUG) { console.warn(...args); } };
 
 type OllamaTagsResponse = {
 	models?: Array<{ name?: string }>;
@@ -145,7 +147,7 @@ async function generateWithModel(
 			})
 		});
 
-		console.warn(`[INTELLEGODE][OLLAMA RESPONSE][${model}] status=${response.status} ok=${response.ok}`);
+		debugLog(`[INTELLEGODE][OLLAMA RESPONSE][${model}] status=${response.status} ok=${response.ok}`);
 
 		if (!response.ok) {
 			let detail = '';
@@ -159,8 +161,8 @@ async function generateWithModel(
 		}
 
 		const rawContent = await readStreamingChatResponse(response, model);
-		console.warn(`[INTELLEGODE][OLLAMA RAW][${model}]`, rawContent);
-		console.warn(`[INTELLEGODE][OLLAMA DONE][${model}] durationMs=${Date.now() - startedAt} chars=${rawContent.length}`);
+		debugLog(`[INTELLEGODE][OLLAMA RAW][${model}]`, rawContent);
+		debugLog(`[INTELLEGODE][OLLAMA DONE][${model}] durationMs=${Date.now() - startedAt} chars=${rawContent.length}`);
 		return rawContent.trim();
 	} catch (error) {
 		if (error instanceof Error && error.name === 'AbortError') {

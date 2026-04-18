@@ -19,6 +19,8 @@ const QUESTION_HISTORY_WINDOW = 12; // Increased from 4 to use full recent histo
 const MAX_SELECTED_SNIPPET_CHARS = 2000;
 const MAX_FILE_CONTEXT_CHARS = 1500;
 const QUESTION_HINT_NUM_CTX = 3072;
+const DEBUG = process.env.INTELLEGODE_DEBUG === '1';
+const debugLog = (...args: unknown[]): void => { if (DEBUG) { console.warn(...args); } };
 
 type QuestionFocusMode = 'behavior' | 'mechanism' | 'failure' | 'tradeoff';
 
@@ -36,10 +38,10 @@ export async function generateQuizQuestion(
     let lastRepaired = '';
 
     const wasSnippetTrimmed = selectedCode.trim().length > MAX_SELECTED_SNIPPET_CHARS;
-    console.warn(
+    debugLog(
         `[INTELLEGODE][QUESTION INPUT] snippetChars=${selectedSnippetContext.length} snippetTrimmed=${wasSnippetTrimmed} fileContextChars=${fileContext.length} recentQuestions=${seenQuestions.length}`
     );
-    console.warn(`[INTELLEGODE][HIGHLIGHTED CODE]\n${selectedSnippetContext}`);
+    debugLog(`[INTELLEGODE][HIGHLIGHTED CODE]\n${selectedSnippetContext}`);
 
     for (let attempt = 0; attempt < MAX_QUESTION_ATTEMPTS; attempt += 1) {
         const currentAttemptSeen: string[] = [];
@@ -60,13 +62,13 @@ export async function generateQuizQuestion(
         const firstIsGrounded = normalizedFirst ? isQuestionGroundedInSnippet(normalizedFirst, selectedSnippetContext) : false;
         if (normalizedFirst && !firstIsRepeated && firstIsGrounded) {
             seenQuestions.push(normalizedFirst);
-            console.warn(`[INTELLEGODE][QUESTION FINAL][first] ${normalizedFirst}`);
+            debugLog(`[INTELLEGODE][QUESTION FINAL][first] ${normalizedFirst}`);
             return normalizedFirst;
         }
 
         // Reject repeated questions, even if grounded -- always attempt repair first
         if (normalizedFirst && (firstIsRepeated || !firstIsGrounded)) {
-            console.warn(
+            debugLog(
                 `[INTELLEGODE][QUESTION REJECT][first] repeated=${firstIsRepeated} grounded=${firstIsGrounded} question=${normalizedFirst}`
             );
         }
@@ -82,7 +84,7 @@ export async function generateQuizQuestion(
             normalizedPreviousRepaired &&
             normalizeQuestionForComparison(normalizedPreviousFirst) === normalizeQuestionForComparison(normalizedPreviousRepaired)
         ) {
-            console.warn(
+            debugLog(
                 `[INTELLEGODE][QUESTION REJECT] skipping repair because previous first and repaired outputs were duplicates: ${normalizedPreviousFirst}`
             );
             break;
@@ -103,13 +105,13 @@ export async function generateQuizQuestion(
         const repairedIsGrounded = normalizedRepaired ? isQuestionGroundedInSnippet(normalizedRepaired, selectedSnippetContext) : false;
         if (normalizedRepaired && !repairedIsRepeated && repairedIsGrounded) {
             seenQuestions.push(normalizedRepaired);
-            console.warn(`[INTELLEGODE][QUESTION FINAL][repair] ${normalizedRepaired}`);
+            debugLog(`[INTELLEGODE][QUESTION FINAL][repair] ${normalizedRepaired}`);
             return normalizedRepaired;
         }
 
         // Reject repeated questions, even if grounded -- escalate to fallback
         if (normalizedRepaired && (repairedIsRepeated || !repairedIsGrounded)) {
-            console.warn(
+            debugLog(
                 `[INTELLEGODE][QUESTION REJECT][repair] repeated=${repairedIsRepeated} grounded=${repairedIsGrounded} question=${normalizedRepaired}`
             );
         }
@@ -123,7 +125,7 @@ export async function generateQuizQuestion(
             normalizedRepaired &&
             normalizeQuestionForComparison(normalizedFirst) === normalizeQuestionForComparison(normalizedRepaired)
         ) {
-            console.warn(
+            debugLog(
                 `[INTELLEGODE][QUESTION REJECT] first and repaired outputs matched after normalization: ${normalizedFirst}`
             );
             break;
@@ -131,8 +133,8 @@ export async function generateQuizQuestion(
     }
 
     const fallbackQuestion = buildFallbackQuestion(selectedSnippetContext, seenQuestions, focusMode);
-    console.warn('[INTELLEGODE][QUESTION FALLBACK][raw rejected] first=', lastFirst, 'repair=', lastRepaired);
-    console.warn(`[INTELLEGODE][QUESTION FINAL][fallback] ${fallbackQuestion}`);
+    debugLog('[INTELLEGODE][QUESTION FALLBACK][raw rejected] first=', lastFirst, 'repair=', lastRepaired);
+    debugLog(`[INTELLEGODE][QUESTION FINAL][fallback] ${fallbackQuestion}`);
     return fallbackQuestion;
 }
 

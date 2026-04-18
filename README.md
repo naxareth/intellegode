@@ -16,7 +16,7 @@ Intellegode is a VS Code extension that uses a local LLM to quiz you on code you
 
 - [Node.js](https://nodejs.org/) v18+
 - [Ollama](https://ollama.com/) installed locally or [Docker](https://www.docker.com/) (for Ollama)
-- [VS Code](https://code.visualstudio.com/) v1.74+
+- [VS Code](https://code.visualstudio.com/) v1.110+
 
 ## Setup
 

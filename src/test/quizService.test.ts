@@ -37,7 +37,7 @@ suite('Quiz Service', () => {
 		assert.strictEqual(normalized, raw);
 	});
 
-	test('generateHint prioritizes static hint patterns before LLM output', async () => {
+	test('generateHint calls LLM and returns its output when valid', async () => {
 		let llmCalls = 0;
 		const fakeCaller = async (): Promise<string> => {
 			llmCalls += 1;
@@ -53,8 +53,10 @@ suite('Quiz Service', () => {
 		].join('\n');
 		const hint = await generateHint(code, 'What failure path is used when the request breaks?', fakeCaller);
 
+		// LLM is always called now (preferStaticHint always returns false)
+		assert.strictEqual(llmCalls, 1);
+		assert.ok(hint.length > 0);
 		assert.ok(hint.includes('fallback'));
-		assert.strictEqual(llmCalls, 0);
 	});
 
 	test('normalizeQuizQuestionOutput extracts a clean question from malformed output', () => {
