@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers workflow only when you push a tag like "v0.0.1"
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to create GitHub Releases
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18 # Minimum supported node version for standard VS Code tasks
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Lint
+        run: npm run lint
+
+      # (Optional) Uncomment to enforce tests map properly before release
+      # - name: Run tests
+      #   run: xvfb-run -a npm test
+
+      - name: Install VSCE Package Manager
+        run: npm install -g @vscode/vsce
+
+      - name: Package Extension
+        run: vsce package -o intellegode.vsix --allow-missing-repository
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: intellegode.vsix
+          generate_release_notes: true
+          draft: false
+          prerelease: false
