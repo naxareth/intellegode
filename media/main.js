@@ -107,7 +107,8 @@ function addSessionEntry(question, grade, answer, explanation) {
   renderSessionLog();
 }
 
-function openModal(index) {
+function openSessionModal(index) {
+  var modalOverlay = document.getElementById('sessionModal');
   if (!modalOverlay || index < 0 || index >= sessionEntries.length) return;
   currentModalIndex = index;
   var entry = sessionEntries[index];
@@ -120,11 +121,17 @@ function openModal(index) {
   if (modalPrevBtn) modalPrevBtn.disabled = index === 0;
   if (modalNextBtn) modalNextBtn.disabled = index === sessionEntries.length - 1;
   
-  modalOverlay.style.display = 'flex';
+  modalOverlay.classList.add('visible');
 }
 
-function closeModal() {
-  if (modalOverlay) modalOverlay.style.display = 'none';
+function openGenericModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.add('visible');
+}
+
+function closeGenericModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.remove('visible');
 }
 
 function renderSessionLog() {
@@ -152,7 +159,7 @@ function renderSessionLog() {
     // Bind current loop index
     (function(index) {
       el.addEventListener('click', function() {
-        openModal(index);
+        openSessionModal(index);
       });
     })(i);
     
@@ -200,8 +207,7 @@ if (newQuestionBtn) {
 
 if (resetBtn) {
   resetBtn.addEventListener('click', function () {
-    hideValidation();
-    postToExtension({ command: 'resetQuiz' });
+    openGenericModal('resetModal');
   });
 }
 
@@ -234,6 +240,14 @@ if (nextQuestionBtn) {
 
 if (reviewResetBtn) {
   reviewResetBtn.addEventListener('click', function () {
+    openGenericModal('resetModal');
+  });
+}
+
+var confirmResetBtn = document.getElementById('confirmResetBtn');
+if (confirmResetBtn) {
+  confirmResetBtn.addEventListener('click', function() {
+    closeGenericModal('resetModal');
     hideValidation();
     postToExtension({ command: 'resetQuiz' });
   });
@@ -275,20 +289,34 @@ document.addEventListener('keydown', function (e) {
   }
 });
 
-if (modalClose) {
-  modalClose.addEventListener('click', closeModal);
+var closeButtons = document.querySelectorAll('.modal-close');
+for (var i = 0; i < closeButtons.length; i++) {
+  closeButtons[i].addEventListener('click', function(e) {
+    var targetId = e.currentTarget.getAttribute('data-target');
+    if (targetId) closeGenericModal(targetId);
+  });
 }
 
 if (modalPrevBtn) {
   modalPrevBtn.addEventListener('click', function() {
-    if (currentModalIndex > 0) openModal(currentModalIndex - 1);
+    if (currentModalIndex > 0) openSessionModal(currentModalIndex - 1);
   });
 }
 
 if (modalNextBtn) {
   modalNextBtn.addEventListener('click', function() {
-    if (currentModalIndex < sessionEntries.length - 1) openModal(currentModalIndex + 1);
+    if (currentModalIndex < sessionEntries.length - 1) openSessionModal(currentModalIndex + 1);
   });
+}
+
+var showAboutBtn = document.getElementById('showAboutBtn');
+if (showAboutBtn) {
+  showAboutBtn.addEventListener('click', function() { openGenericModal('aboutModal'); });
+}
+
+var showChangelogBtn = document.getElementById('showChangelogBtn');
+if (showChangelogBtn) {
+  showChangelogBtn.addEventListener('click', function() { openGenericModal('changelogModal'); });
 }
 
 // --- Loading Messages ---

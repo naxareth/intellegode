@@ -18,8 +18,8 @@ body {
   align-items: center;
   gap: 12px;
   margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,0.2));
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.1));
 }
 
 .logo {
@@ -43,6 +43,19 @@ body {
   letter-spacing: 0.05em;
   color: var(--vscode-editor-foreground);
   opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.version {
+  font-size: 10px;
+  font-weight: 400;
+  background: var(--vscode-badge-background, rgba(128,128,128,0.2));
+  color: var(--vscode-badge-foreground, var(--vscode-editor-foreground));
+  padding: 2px 6px;
+  border-radius: 10px;
+  opacity: 1;
 }
 
 /* --- Selection Tip --- */
@@ -597,33 +610,50 @@ button:disabled {
   overflow: hidden;
 }
 
-/* --- Modal --- */
+/* --- Modal Architecture --- */
 
-.modal-overlay {
+.modal-wrapper {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: rgba(0,0,0,0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 20px;
-  animation: fadeIn 0.15s ease;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  backdrop-filter: blur(2px);
+}
+
+.modal-wrapper.visible {
+  opacity: 1;
+  pointer-events: all;
+  visibility: visible;
 }
 
 .modal-content {
   background: var(--vscode-editorWidget-background);
   border: 1px solid var(--vscode-editorWidget-border);
-  border-radius: 4px;
+  border-radius: 6px;
   width: 100%;
   max-width: 600px;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  transform: translateY(10px);
+  transition: transform 0.15s ease;
+}
+
+.modal-wrapper.visible .modal-content {
+  transform: translateY(0);
+}
+
+.modal-content.modal-sm {
+  max-width: 400px;
 }
 
 .modal-header {
@@ -708,8 +738,50 @@ button:disabled {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
 }
-.modal-btn:hover:not(:disabled) {
-  background: var(--vscode-button-secondaryHoverBackground);
+.modal-btn.danger {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-testing-iconFailed, #f14c4c);
+  border: 1px solid var(--vscode-testing-iconFailed, #f14c4c);
+}
+.modal-btn.danger:hover:not(:disabled) {
+  background: var(--vscode-testing-iconFailed, #f14c4c);
+  color: var(--vscode-editor-background);
+}
+
+.markdown-content {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* --- Footer --- */
+
+.footer {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--vscode-widget-border, rgba(128,128,128,0.1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.footer-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.footer-link:hover {
+  text-decoration: underline;
+}
+
+.footer-sep {
+  opacity: 0.4;
+  font-size: 8px;
 }
 
 /* --- Animation --- */

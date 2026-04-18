@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizService';
 import { QuizWebviewMessage } from './types';
 import { getQuizWebviewHtml } from './quizWebview';
@@ -42,13 +44,31 @@ export async function startQuizSession(
 	let missedItCount = 0;
 	const showSnippetLengthWarning = selectedCode.trim().length > 800;
 
+	// Load extension metadata
+    const extensionId = 'naxareth.intellegode';
+    const extension = vscode.extensions.getExtension(extensionId);
+    const version = extension?.packageJSON?.version ?? '0.0.1';
+    
+    let changelogContent = 'Changelog not found.';
+    try {
+        const changelogPath = path.join(context.extensionPath, 'CHANGELOG.md');
+        if (fs.existsSync(changelogPath)) {
+            changelogContent = fs.readFileSync(changelogPath, 'utf8');
+        }
+    } catch(e) {
+        // ignore
+    }
+
 	// Show loading state immediately so user knows something is happening
 	const loadingHtml = getQuizWebviewHtml(
 		panel.webview,
 		context.extensionUri,
 		'Loading...',
 		showSnippetLengthWarning,
-		historyLoadedCount
+		historyLoadedCount,
+        version,
+        changelogContent,
+        true // isInitialLoading
 	);
 	panel.webview.html = loadingHtml;
 
@@ -64,7 +84,10 @@ export async function startQuizSession(
 		context.extensionUri,
 		currentQuestion,
 		showSnippetLengthWarning,
-		historyLoadedCount
+		historyLoadedCount,
+        version,
+        changelogContent,
+        false // isInitialLoading
 	);
 	panel.webview.html = questionHtml;
 

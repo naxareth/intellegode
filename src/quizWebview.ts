@@ -4,8 +4,11 @@ export function getQuizWebviewHtml(
 	webview: vscode.Webview,
 	extensionUri: vscode.Uri,
 	question: string,
-  showSnippetLengthWarning: boolean = false,
-  _historyLoadedCount: number = 0
+    showSnippetLengthWarning: boolean = false,
+    _historyLoadedCount: number = 0,
+    version: string = '0.0.1',
+    changelogContent: string = '',
+    isInitialLoading: boolean = false
 ): string {
 	const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'styles.css'));
 	const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'main.js'));
@@ -30,7 +33,7 @@ export function getQuizWebviewHtml(
 
   <div class="header">
     <div class="logo">ig</div>
-    <span class="brand">INTELLEGODE</span>
+    <span class="brand">INTELLEGODE <span class="version">v${version}</span></span>
   </div>
 
   ${showSnippetLengthWarning ? '<div class="selection-tip" id="selectionTip">Tip: For best results, highlight a single function or small block — not the entire file.<button class="close-tip" id="closeTip" aria-label="Dismiss tip">&times;</button></div>' : ''}
@@ -58,7 +61,7 @@ export function getQuizWebviewHtml(
     </div>
   </div>
 
-  <div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-overlay${isInitialLoading ? ' visible' : ''}" id="loadingOverlay">
     <div class="loading-card">
       <svg class="spinner" viewBox="0 0 50 50">
         <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="4"></circle>
@@ -100,11 +103,11 @@ export function getQuizWebviewHtml(
     <div class="session-log-list" id="sessionLogList"></div>
   </div>
 
-  <div class="modal-overlay" id="sessionModal" style="display: none;">
+  <div class="modal-wrapper" id="sessionModal">
     <div class="modal-content">
       <div class="modal-header">
         <div class="modal-title">Session Details</div>
-        <button class="modal-close" id="modalClose">&times;</button>
+        <button class="modal-close" data-target="sessionModal">&times;</button>
       </div>
       <div class="modal-body">
         <div class="modal-label">Question</div>
@@ -120,6 +123,55 @@ export function getQuizWebviewHtml(
         <button id="modalNextBtn" class="modal-btn">Next</button>
       </div>
     </div>
+  </div>
+
+  <div class="modal-wrapper" id="resetModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <div class="modal-title">Reset Session</div>
+        <button class="modal-close" data-target="resetModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; line-height: 1.5; margin: 0; color: var(--vscode-editor-foreground);">Are you sure you want to reset your quiz session? This will clear your session review history and start fresh with a clean slate.</p>
+      </div>
+      <div class="modal-footer" style="justify-content: flex-end; gap: 8px;">
+        <button class="modal-btn modal-close" data-target="resetModal">Cancel</button>
+        <button id="confirmResetBtn" class="modal-btn danger">Confirm Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-wrapper" id="aboutModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">About Intellegode</div>
+        <button class="modal-close" data-target="aboutModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; line-height: 1.5;"><strong>Intellegode</strong> is an AI-powered educational pair-programmer designed to teach developers code concepts via interactive comprehension checks.</p>
+        <p style="font-size: 13px; line-height: 1.5;">Highlight a snippet of code, hit Ctrl+Shift+Enter, and test your understanding dynamically.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-wrapper" id="changelogModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">Changelog</div>
+        <button class="modal-close" data-target="changelogModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-text markdown-content">${escapeHtml(changelogContent)}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="footer-link" id="showAboutBtn">About</button>
+    <span class="footer-sep">&bull;</span>
+    <button class="footer-link" id="showChangelogBtn">Changelog</button>
+    <span class="footer-sep">&bull;</span>
+    <a href="https://github.com/naxareth/intellegode" class="footer-link">GitHub</a>
   </div>
 
   <script nonce="${nonce}" src="${scriptUri}?n=${nonce}"></script>
