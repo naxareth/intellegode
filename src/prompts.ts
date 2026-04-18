@@ -79,12 +79,18 @@ export function buildQuizQuestionRepairPrompt(
 
 export function buildHintPrompt(code: string, question: string): string {
 	return [
-		'Write one conceptual fill-in-the-blank hint for the learner.',
+		'Give the learner one short conceptual nudge to help them think toward the answer.',
 		'',
 		'RULES:',
 		'- Output exactly one sentence ending with a period.',
-		'- Use this structure: "Focus on how ____ affects ____ before ____."',
-		'- Keep the blanks behavior-focused and concept-level (condition, fallback path, output, state).',
+		'- Do NOT reveal the answer or name specific identifiers from the code.',
+		'- Point toward the general concept, pattern, or relationship the learner should consider.',
+		'- Vary your sentence structure. Use any of these starters or similar:',
+		'  "Think about why..."',
+		'  "Consider what changes when..."',
+		'  "Notice the relationship between..."',
+		'  "Ask yourself what would break if..."',
+		'  "The key insight is about how..."',
 		'',
 		'Code:',
 		code,

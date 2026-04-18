@@ -126,7 +126,6 @@ export async function startQuizSession(
 				}
 				await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 				panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
-				panel.webview.postMessage({ command: 'updateHistoryCount', count: askedQuestions.length });
 			} catch (error) {
 				const friendlyMessage = getUserFriendlyErrorMessage(error);
 				panel.webview.postMessage({
@@ -146,7 +145,6 @@ export async function startQuizSession(
 			askedQuestions.push(currentQuestion);
 			await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 			panel.webview.postMessage({ command: 'resetQuiz' });
-			panel.webview.postMessage({ command: 'updateHistoryCount', count: askedQuestions.length });
 			panel.webview.postMessage({
 				command: 'showSelfGrade',
 				result: 'reset',

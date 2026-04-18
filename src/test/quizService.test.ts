@@ -41,7 +41,7 @@ suite('Quiz Service', () => {
 		let llmCalls = 0;
 		const fakeCaller = async (): Promise<string> => {
 			llmCalls += 1;
-			return 'Focus on how fallback behavior affects output before return.';
+			return 'Think about what happens to the caller when the main operation throws an error.';
 		};
 
 		const code = [
@@ -56,7 +56,7 @@ suite('Quiz Service', () => {
 		// LLM is always called now (preferStaticHint always returns false)
 		assert.strictEqual(llmCalls, 1);
 		assert.ok(hint.length > 0);
-		assert.ok(hint.includes('fallback'));
+		assert.ok(hint.includes('error'));
 	});
 
 	test('normalizeQuizQuestionOutput extracts a clean question from malformed output', () => {

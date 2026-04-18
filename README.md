@@ -22,7 +22,7 @@ Intellegode is a VS Code extension that uses a local LLM to quiz you on code you
 
 **1. Clone the repo**
 ```bash
-git clone <repo-url>
+git clone https://github.com/naxareth/intellegode.git
 cd intellegode
 ```
 

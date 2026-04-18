@@ -646,43 +646,44 @@ function buildFallbackHint(code: string, question: string): string {
     const signals = collectCodeSignals(code);
 
     if ((lowered.includes('error') || lowered.includes('failure') || lowered.includes('catch')) && (signals.hasTryCatch || signals.hasFallbackDefault)) {
-        return 'Focus on what can fail in the main path and how the fallback path preserves a usable return contract.';
+        return 'Think about what could go wrong in the main path and what the code does to keep things running when it does.';
     }
 
     if ((lowered.includes('condition') || lowered.includes('branch') || lowered.includes('decision')) && signals.hasCondition) {
-        return 'Look for the single check that decides which path executes and what state each path guarantees.';
+        return 'Consider which single check determines the two different outcomes and why each path matters.';
     }
 
     if ((lowered.includes('loop') || lowered.includes('iteration') || lowered.includes('each')) && (signals.hasLoop || signals.hasTransformation)) {
-        return 'Track what changes on each pass and how those small changes accumulate into the final output.';
+        return 'Notice what accumulates or changes on every pass and how those small steps build the final result.';
     }
 
     if ((lowered.includes('return') || lowered.includes('output') || lowered.includes('default')) && signals.hasReturn) {
-        return 'Look at the output contract and ask why this shape is safer for callers than returning raw intermediate state.';
+        return 'Ask yourself why the output is shaped this way instead of returning raw intermediate data.';
     }
 
     if ((lowered.includes('async') || lowered.includes('await') || lowered.includes('request')) && signals.hasAsync) {
-        return 'Identify which step must finish before the rest of the snippet can produce a correct result.';
+        return 'Think about which step absolutely must complete before the rest of the logic can produce a correct result.';
     }
 
     if (signals.hasCondition) {
-        return 'Focus on the decision point that gates the rest of the logic and why that gate exists.';
+        return 'Consider the decision point that controls which path runs and what would happen if it were removed.';
     }
 
     if (signals.hasTransformation || signals.hasLoop) {
-        return 'Follow the data shape from start to finish and note where it is transformed into the final result.';
+        return 'Trace the data from its starting shape to its final form and notice where the key transformation happens.';
     }
 
-    return 'Focus on the one operation this snippet performs that the rest of the flow depends on being correct.';
+    return 'Ask yourself what single operation in this snippet makes the biggest difference to the final outcome.';
 }
 
 function buildHintRepairPrompt(rawOutput: string, question: string): string {
     return [
-        'Rewrite this into exactly one concise conceptual fill-in-the-blank hint for the learner.',
+        'Rewrite this into exactly one concise conceptual hint for the learner.',
         'STRICT RULES:',
         '- One sentence only, ending with a period.',
-        '- Use this structure: "Focus on how ____ affects ____ before ____."',
-        '- Keep the blanks behavior-focused and directly relevant to the question context.',
+        '- Do NOT reveal the answer or name code identifiers.',
+        '- Point toward the concept or pattern the learner should think about.',
+        '- Do NOT start with "Focus on how" — vary the phrasing naturally.',
         '',
         'Question context:',
         question,

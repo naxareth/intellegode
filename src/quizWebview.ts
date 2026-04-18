@@ -5,7 +5,7 @@ export function getQuizWebviewHtml(
 	extensionUri: vscode.Uri,
 	question: string,
   showSnippetLengthWarning: boolean = false,
-  historyLoadedCount: number = 0
+  _historyLoadedCount: number = 0
 ): string {
 	const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'styles.css'));
 	const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'main.js'));
@@ -34,27 +34,27 @@ export function getQuizWebviewHtml(
     <span class="brand">INTELLEGODE</span>
   </div>
 
-  <div class="history-badge" id="historyBadge">History loaded: <span id="historyCount">${historyLoadedCount}</span></div>
-
-  ${showSnippetLengthWarning ? '<div class="selection-tip">Tip: For best results, highlight a single function or small block — not the entire file.</div>' : ''}
+  ${showSnippetLengthWarning ? '<div class="selection-tip" id="selectionTip">Tip: For best results, highlight a single function or small block — not the entire file.<button class="close-tip" id="closeTip" aria-label="Dismiss tip">&times;</button></div>' : ''}
 
   <div class="question-card">
-    <div class="question-label">▸ Comprehension Check</div>
+    <div class="question-label">Comprehension Check</div>
     <div class="question-text" id="questionText">${escapeHtml(question)}</div>
   </div>
 
   <div class="hint-box" id="hint">
-    <div class="hint-label">💡 Hint</div>
+    <div class="hint-label">Hint</div>
     <div id="hintText"></div>
+    <button class="hint-close" id="hintClose" aria-label="Dismiss hint">&times;</button>
   </div>
 
   <div class="input-section" id="inputSection">
     <label for="answer">Your Answer <span class="shortcut-hint">Ctrl+Enter to submit</span></label>
     <textarea id="answer" placeholder="Explain it in your own words..."></textarea>
+    <div class="validation-msg" id="validationMsg">Write at least a short sentence explaining your understanding.</div>
 
     <div class="actions">
       <button id="submit">Submit</button>
-      <button id="hintBtn">Give me a hint</button>
+      <button id="hintBtn">Hint</button>
       <button id="newQuestionBtn">New question</button>
       <button id="resetBtn">Reset</button>
     </div>
@@ -74,8 +74,8 @@ export function getQuizWebviewHtml(
       </div>
     </div>
     <div class="self-grade-actions" id="selfGradeActions">
-      <button id="gotItBtn">✓ I got it</button>
-      <button id="missedItBtn">✗ I missed it</button>
+      <button id="gotItBtn">Got it</button>
+      <button id="missedItBtn">Missed it</button>
     </div>
     <div class="self-grade-status" id="selfGradeStatus"></div>
     <div class="review-actions" id="reviewActions">
@@ -87,19 +87,12 @@ export function getQuizWebviewHtml(
 
   <div class="result-box" id="result"></div>
 
-  <div class="progress-section" id="progressSection">
-    <div class="progress-header">
-      <span class="progress-label">Session Progress</span>
-      <span class="progress-count" id="progressCount">0 reviewed</span>
+  <div class="session-log" id="sessionLog">
+    <div class="session-log-header">
+      <span class="session-log-title">Session Review</span>
+      <span class="session-log-count" id="sessionLogCount">0 reviewed</span>
     </div>
-    <div class="progress-bar">
-      <div class="progress-got-it" id="progressGotIt"></div>
-      <div class="progress-missed-it" id="progressMissedIt"></div>
-    </div>
-    <div class="progress-stats">
-      <span class="stat-got-it" id="statGotIt">✓ 0 got it</span>
-      <span class="stat-missed-it" id="statMissedIt">✗ 0 missed it</span>
-    </div>
+    <div class="session-log-list" id="sessionLogList"></div>
   </div>
 
   <script nonce="${nonce}" src="${scriptUri}"></script>
