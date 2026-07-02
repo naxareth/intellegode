@@ -16,3 +16,42 @@ export type QuizWebviewMessage =
 	| { command: 'newQuestion' }
 	| { command: 'resetQuiz' }
 	| { command: 'selfGrade'; result?: 'got-it' | 'missed-it' };
+
+export type ConceptTag =
+	| 'conditionals'
+	| 'loops'
+	| 'transformations'
+	| 'async-await'
+	| 'error-handling'
+	| 'return-contracts'
+	| 'fallback-defaults'
+	| 'general';
+
+export type QuizRecord = {
+	id: string;
+	question: string;
+	userAnswer: string;
+	explanation: string;
+	selfGrade: 'got-it' | 'missed-it';
+	conceptTags: ConceptTag[];
+	languageId: string;
+	codeSnippetPreview: string;
+	timestamp: number;
+};
+
+export type ConceptStats = {
+	concept: ConceptTag;
+	total: number;
+	gotIt: number;
+	missedIt: number;
+	missRate: number;
+	lastReviewedAt: number;
+};
+
+export type StreakData = {
+	currentStreak: number;
+	longestStreak: number;
+	lastActiveDate: string;
+	totalSessions: number;
+	totalQuestions: number;
+};
