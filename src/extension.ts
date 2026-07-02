@@ -64,7 +64,7 @@ export function activate(context: vscode.ExtensionContext) {
 				{ enableScripts: true }
 			);
 
-			await startQuizSession(panel, selectedCode, fileCode, EVALUATOR_MODEL, context);
+			await startQuizSession(panel, selectedCode, fileCode, EVALUATOR_MODEL, context, languageId);
 		} catch (error) {
 			const friendlyMessage = getUserFriendlyErrorMessage(error);
 			const hint = getHintForError(error);

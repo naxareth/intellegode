@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizService';
-import { QuizWebviewMessage } from './types';
+import { QuizWebviewMessage, ConceptTag } from './types';
+import { saveQuizRecord } from './quizHistory';
 import { getQuizWebviewHtml } from './quizWebview';
 import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
 
@@ -20,7 +21,8 @@ export async function startQuizSession(
 	selectedCode: string,
 	fileCodeContext: string,
 	evaluatorModel: string,
-	context: vscode.ExtensionContext
+	context: vscode.ExtensionContext,
+	languageId: string = 'unknown'
 ): Promise<void> {
 	const questionState = loadRecentQuestionState(context);
 	const globalRecentQuestions = questionState.globalRecentQuestions;
@@ -37,6 +39,8 @@ export async function startQuizSession(
 	const historyLoadedCount = askedQuestions.length;
 	let gotItCount = 0;
 	let missedItCount = 0;
+	let currentUserAnswer = '';
+	let currentExplanation = '';
 	const showSnippetLengthWarning = selectedCode.trim().length > 800;
 
 	// Load extension metadata
@@ -100,6 +104,8 @@ export async function startQuizSession(
 			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'grade' });
 			try {
 				const explanation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer, evaluatorModel);
+				currentUserAnswer = userAnswer;
+				currentExplanation = explanation;
 				panel.webview.postMessage({
 					command: 'showReview',
 					userAnswer,
@@ -186,6 +192,19 @@ export async function startQuizSession(
 				missedItCount,
 				total: gotItCount + missedItCount
 			});
+
+			if (message.result === 'got-it' || message.result === 'missed-it') {
+				const conceptTags = detectConceptTags(selectedCode);
+				saveQuizRecord(context, {
+					question: currentQuestion,
+					userAnswer: currentUserAnswer,
+					explanation: currentExplanation,
+					selfGrade: message.result,
+					conceptTags,
+					languageId,
+					codeSnippetPreview: selectedCode.slice(0, 200)
+				}).catch(console.error); // Fire and forget with error logging
+			}
 		}
 	});
 }
@@ -245,4 +264,32 @@ async function recordQuestion(
 		globalRecentQuestions,
 		recentQuestionsBySelection
 	} satisfies RecentQuestionState);
+}
+
+function detectConceptTags(code: string): ConceptTag[] {
+	const tags: ConceptTag[] = [];
+
+	if (/\bif\s*\(|\belse\b|\bswitch\s*\(/i.test(code)) {
+		tags.push('conditionals');
+	}
+	if (/\bfor\s*\(|\bwhile\s*\(|\bfor\s+const\b|\bfor\s+let\b/i.test(code)) {
+		tags.push('loops');
+	}
+	if (/\.(map|filter|reduce|flatMap|some|every)\s*\(/i.test(code)) {
+		tags.push('transformations');
+	}
+	if (/\basync\b|\bawait\b|\.then\s*\(/i.test(code)) {
+		tags.push('async-await');
+	}
+	if (/\btry\s*\{|\bcatch\s*\(/i.test(code)) {
+		tags.push('error-handling');
+	}
+	if (/\breturn\b/i.test(code)) {
+		tags.push('return-contracts');
+	}
+	if (/\|\||\?\?|catch\s*\([^)]*\)[\s\S]{0,260}?return\b/i.test(code)) {
+		tags.push('fallback-defaults');
+	}
+
+	return tags.length > 0 ? tags : ['general'];
 }
