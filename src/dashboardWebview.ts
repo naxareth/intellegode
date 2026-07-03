@@ -69,7 +69,7 @@ export function getDashboardWebviewHtml(
 						conceptStats.map(stat => {
 							const percent = Math.round(stat.missRate * 100);
 							const colorClass = percent < 30 ? 'low' : percent < 60 ? 'medium' : 'high';
-							const formatConcept = stat.concept.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+							const formatConcept = stat.concept.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
 							const lastReviewDate = new Date(stat.lastReviewedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 							
 							return `
@@ -106,7 +106,7 @@ export function getDashboardWebviewHtml(
 								</div>
 								<div class="history-question">${escapeHtml(questionTrunc)}</div>
 								<div class="history-tags">
-									${record.conceptTags.map(tag => `<span class="concept-pill">${tag.replace(/-/g, ' ')}</span>`).join('')}
+									${record.conceptTags.map((tag: string) => `<span class="concept-pill">${tag.replace(/-/g, ' ')}</span>`).join('')}
 								</div>
 							</div>
 						`;
