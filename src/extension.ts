@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { startQuizSession } from './quizController';
 import { checkOllamaAvailability } from './ollamaClient';
 import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
+import { getConceptStats, getQuizHistory, getStreakData, clearQuizHistory } from './quizHistory';
+import { getDashboardWebviewHtml } from './dashboardWebview';
 
 const EVALUATOR_MODEL = 'qwen3.5:4b';
 const NON_CODE_LANGUAGE_IDS = new Set([
@@ -73,7 +75,37 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	const dashboardDisposable = vscode.commands.registerCommand('intellegode.viewProgress', async () => {
+		const conceptStats = getConceptStats(context);
+		const streakData = getStreakData(context);
+		const history = getQuizHistory(context);
+		const recentHistory = history.slice(-10).reverse();
+
+		const extensionId = 'naxareth.intellegode';
+		const ext = vscode.extensions.getExtension(extensionId);
+		const version = ext?.packageJSON?.version ?? '0.0.1';
+
+		const panel = vscode.window.createWebviewPanel(
+			'intellegodeDashboard',
+			'Intellegode: Progress',
+			vscode.ViewColumn.Beside,
+			{ enableScripts: true }
+		);
+
+		panel.webview.html = getDashboardWebviewHtml(
+			panel.webview, context.extensionUri, conceptStats, streakData, recentHistory, version
+		);
+
+		panel.webview.onDidReceiveMessage(async (message: { command: string }) => {
+			if (message.command === 'clearHistory') {
+				await clearQuizHistory(context);
+				panel.webview.postMessage({ command: 'historyCleared' });
+			}
+		});
+	});
+
 	context.subscriptions.push(disposable);
+	context.subscriptions.push(dashboardDisposable);
 }
 
 export function deactivate() {}
