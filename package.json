@@ -23,6 +23,10 @@
       {
         "command": "intellegode.quizMe",
         "title": "Intellegode: Quiz Me"
+      },
+      {
+        "command": "intellegode.viewProgress",
+        "title": "Intellegode: View Progress"
       }
     ],
     "keybindings": [
@@ -31,6 +35,11 @@
         "key": "ctrl+alt+q",
         "mac": "cmd+alt+q",
         "when": "editorFocus && editorTextFocus"
+      },
+      {
+        "command": "intellegode.viewProgress",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d"
       }
     ],
     "configuration": {
