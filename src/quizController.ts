@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizService';
 import { QuizWebviewMessage, ConceptTag } from './types';
-import { saveQuizRecord } from './quizHistory';
+import { saveQuizRecord, getWeakConceptNudge } from './quizHistory';
 import { getQuizWebviewHtml } from './quizWebview';
 import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
 
@@ -88,6 +88,11 @@ export async function startQuizSession(
         false // isInitialLoading
 	);
 	panel.webview.html = questionHtml;
+
+	const nudge = getWeakConceptNudge(context);
+	if (nudge) {
+		panel.webview.postMessage({ command: 'showNudge', text: nudge });
+	}
 
 	// Route webview events to the quiz service and return UI updates to the panel.
 	panel.webview.onDidReceiveMessage(async (message: QuizWebviewMessage) => {

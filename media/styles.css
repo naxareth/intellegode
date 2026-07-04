@@ -240,6 +240,42 @@ body {
   padding-top: 20px;
 }
 
+/* --- Nudge Banner --- */
+.nudge-banner {
+  display: none;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  background: var(--vscode-editorInfo-background, rgba(70, 130, 180, 0.1));
+  border: 1px solid var(--vscode-editorInfo-foreground, rgba(70, 130, 180, 0.3));
+  color: var(--vscode-editor-foreground);
+  position: relative;
+}
+
+.nudge-banner.visible {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: fadeIn 0.3s ease;
+}
+
+.nudge-dismiss {
+  background: none;
+  border: none;
+  color: var(--vscode-editor-foreground);
+  font-size: 16px;
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.nudge-dismiss:hover {
+  opacity: 1;
+}
+
 .clear-btn {
   background: none;
   border: 1px solid var(--vscode-errorForeground, #f14c4c);

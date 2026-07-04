@@ -51,6 +51,9 @@ var sessionLog = document.getElementById('sessionLog');
 var sessionLogList = document.getElementById('sessionLogList');
 var sessionLogCount = document.getElementById('sessionLogCount');
 
+var nudgeBanner = document.getElementById('nudgeBanner');
+var nudgeText = document.getElementById('nudgeText');
+var nudgeDismiss = document.getElementById('nudgeDismiss');
 // Modal Elements
 var modalOverlay = document.getElementById('sessionModal');
 var modalClose = document.getElementById('modalClose');
@@ -265,6 +268,12 @@ if (closeTip) {
   });
 }
 
+if (nudgeDismiss) {
+  nudgeDismiss.addEventListener('click', function() {
+    if (nudgeBanner) nudgeBanner.classList.remove('visible');
+  });
+}
+
 if (answerInput) {
   answerInput.addEventListener('input', function () {
     if (isAnswerValid(answerInput.value)) {
@@ -412,6 +421,11 @@ window.addEventListener('message', function (event) {
   if (msg.command === 'showHint') {
     if (hintText) hintText.textContent = msg.hint || '';
     if (hintBox) hintBox.classList.add('visible');
+  }
+
+  if (msg.command === 'showNudge') {
+    if (nudgeText) nudgeText.textContent = String(msg.text || '');
+    if (nudgeBanner) nudgeBanner.classList.add('visible');
   }
 
   if (msg.command === 'showResult') {

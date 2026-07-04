@@ -41,6 +41,10 @@ export function getQuizWebviewHtml(
 
   ${showSnippetLengthWarning ? '<div class="selection-tip" id="selectionTip">Tip: For best results, highlight a single function or small block — not the entire file.<button class="close-tip" id="closeTip" aria-label="Dismiss tip">&times;</button></div>' : ''}
 
+  <div class="nudge-banner" id="nudgeBanner">
+    <span id="nudgeText"></span>
+    <button class="nudge-dismiss" id="nudgeDismiss" aria-label="Dismiss">&times;</button>
+  </div>
   <div class="question-card">
     <div class="question-label">Comprehension Check</div>
     <div class="question-text" id="questionText">${escapeHtml(question)}</div>

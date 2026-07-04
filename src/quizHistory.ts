@@ -135,3 +135,24 @@ export async function clearQuizHistory(context: vscode.ExtensionContext): Promis
 	await context.globalState.update(HISTORY_STATE_KEY, undefined);
 	await context.globalState.update(STREAK_STATE_KEY, undefined);
 }
+
+export function getWeakConceptNudge(context: vscode.ExtensionContext): string | null {
+	const stats = getConceptStats(context);
+	const now = Date.now();
+	const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+	const weakConcepts = stats.filter(stat => 
+		stat.missRate > 0.5 && 
+		stat.total >= 2 && 
+		(stat.lastReviewedAt === 0 || now - stat.lastReviewedAt > THREE_DAYS_MS)
+	);
+
+	if (weakConcepts.length === 0) {
+		return null;
+	}
+
+	const topWeakness = weakConcepts[0].concept;
+	const formattedConcept = topWeakness === 'async-await' ? 'async/await' : topWeakness.replace(/-/g, ' ');
+
+	return `You've struggled with ${formattedConcept} recently. Try selecting code related to it to practice.`;
+}
