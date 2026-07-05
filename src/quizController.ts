@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizService';
 import { QuizWebviewMessage, ConceptTag } from './types';
-import { saveQuizRecord, getWeakConceptNudge } from './quizHistory';
+import { saveQuizRecord, getWeakConceptNudge, getStreakData } from './quizHistory';
 import { getQuizWebviewHtml } from './quizWebview';
 import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
 
@@ -57,6 +57,7 @@ export async function startQuizSession(
     } catch(e) {
         // ignore
     }
+	const streakData = getStreakData(context);
 
 	// Show loading state immediately so user knows something is happening
 	const loadingHtml = getQuizWebviewHtml(
@@ -67,7 +68,8 @@ export async function startQuizSession(
 		historyLoadedCount,
         version,
         changelogContent,
-        true // isInitialLoading
+        true, // isInitialLoading
+		streakData.currentStreak
 	);
 	panel.webview.html = loadingHtml;
 
@@ -85,7 +87,8 @@ export async function startQuizSession(
 		historyLoadedCount,
         version,
         changelogContent,
-        false // isInitialLoading
+        false, // isInitialLoading
+		streakData.currentStreak
 	);
 	panel.webview.html = questionHtml;
 

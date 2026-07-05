@@ -8,7 +8,8 @@ export function getQuizWebviewHtml(
     _historyLoadedCount: number = 0,
     version: string = '0.0.1',
     changelogContent: string = '',
-    isInitialLoading: boolean = false
+    isInitialLoading: boolean = false,
+    streakCount: number = 0
 ): string {
 	const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'styles.css'));
 	const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'main.js'));
@@ -36,7 +37,7 @@ export function getQuizWebviewHtml(
     <div class="logo">
       <img src="${logoUri}" alt="Intellegode Logo" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
     </div>
-    <span class="brand">INTELLEGODE <span class="version">v${version}</span></span>
+    <span class="brand">INTELLEGODE <span class="version">v${version}</span>${streakCount > 0 ? ` <span class="streak-badge">${streakCount}d streak</span>` : ''}</span>
   </div>
 
   ${showSnippetLengthWarning ? '<div class="selection-tip" id="selectionTip">Tip: For best results, highlight a single function or small block — not the entire file.<button class="close-tip" id="closeTip" aria-label="Dismiss tip">&times;</button></div>' : ''}
