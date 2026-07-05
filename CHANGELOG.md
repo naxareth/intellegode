@@ -1,5 +1,14 @@
 # Change Log
 
+## [0.1.0] - 2026-07-04
+
+### Added
+- **Persistent Storage** — Quiz history is now saved across sessions and workspaces
+- **Concept Debt Tracking** — Automatically tags questions with concept categories (e.g., async/await, loops)
+- **Progress Dashboard** — Press `Ctrl+Alt+D` or run "View Progress" to see a heatmap of your weakest concepts
+- **Spaced Repetition Nudges** — Get a smart tip to review forgotten concepts when you open the quiz
+- **Streak Tracking** — Daily study streaks are tracked and displayed in the quiz header
+
 ## [0.0.1] - 2026-04-18
 
 ### Added

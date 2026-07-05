@@ -94,7 +94,7 @@ Wait a few seconds for the model to cache into memory and try again. Alternative
 
 ## Roadmap
 
-- [ ] v1 — Active Quizzer (Highlight -> Question -> Feedback)
-- [ ] v2 — Concept Debt Tracker
-- [ ] v3 — Project Ownership Mapping
-- [ ] v4 — Reconstruction Challenges
+- [x] v1 — Active Quizzer (Highlight -> Question -> Feedback)
+- [x] v0.1.0 — Concept Debt Tracker (Spaced Repetition & History)
+- [ ] v2 — Project Ownership Mapping
+- [ ] v3 — Reconstruction Challenges
