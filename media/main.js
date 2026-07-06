@@ -54,6 +54,7 @@ var sessionLogCount = document.getElementById('sessionLogCount');
 var nudgeBanner = document.getElementById('nudgeBanner');
 var nudgeText = document.getElementById('nudgeText');
 var nudgeDismiss = document.getElementById('nudgeDismiss');
+
 // Modal Elements
 var modalOverlay = document.getElementById('sessionModal');
 var modalClose = document.getElementById('modalClose');
