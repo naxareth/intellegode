@@ -45,6 +45,17 @@
     "configuration": {
       "title": "Intellegode",
       "properties": {
+        "intellegode.provider": {
+          "type": "string",
+          "enum": ["ollama", "openai-compatible"],
+          "default": "ollama",
+          "description": "LLM provider to use. 'ollama' runs locally (default). 'openai-compatible' works with OpenAI, Groq, Together AI, LM Studio, or any /v1/chat/completions endpoint."
+        },
+        "intellegode.apiBaseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com",
+          "description": "Base URL for the OpenAI-compatible API endpoint. Examples: 'https://api.groq.com/openai' for Groq, 'http://localhost:1234' for LM Studio."
+        },
         "intellegode.ollamaUrl": {
           "type": "string",
           "default": "http://localhost:11434",
@@ -53,7 +64,7 @@
         "intellegode.defaultModel": {
           "type": "string",
           "default": "qwen3.5:4b",
-          "description": "Default Ollama model used for Intellegode requests."
+          "description": "LLM model name. For Ollama: try 'qwen3:8b' or 'llama3.1:8b' for better quality. For OpenAI-compatible: use 'gpt-4o-mini', 'llama-3.1-8b-instant', etc."
         }
       }
     }
