@@ -6,6 +6,7 @@ import { QuizWebviewMessage, ConceptTag } from './types';
 import { saveQuizRecord, getWeakConceptNudge, getStreakData } from './quizHistory';
 import { getQuizWebviewHtml } from './quizWebview';
 import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
+import { LLMProvider } from './providers/types';
 
 const MAX_GLOBAL_QUESTION_MEMORY = 8;  // Lighter cross-session history to prevent stale context
 const MAX_SELECTION_QUESTION_MEMORY = 8;  // Stronger per-snippet history for better dedup
@@ -22,8 +23,12 @@ export async function startQuizSession(
 	fileCodeContext: string,
 	evaluatorModel: string,
 	context: vscode.ExtensionContext,
-	languageId: string = 'unknown'
+	languageId: string = 'unknown',
+	provider?: LLMProvider
 ): Promise<void> {
+	const ollamaCaller = provider ? async (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number, numCtx?: number) => {
+		return provider.sendPrompt(prompt, { model, maxTokens, timeoutMs, numCtx });
+	} : undefined;
 	const questionState = loadRecentQuestionState(context);
 	const globalRecentQuestions = questionState.globalRecentQuestions;
 	const recentQuestionsBySelection = questionState.recentQuestionsBySelection;
@@ -74,7 +79,7 @@ export async function startQuizSession(
 	panel.webview.html = loadingHtml;
 
 	// Generate question in background
-	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
+	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, ollamaCaller, askedQuestions);
 	askedQuestions.push(currentQuestion);
 	await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 
@@ -111,7 +116,7 @@ export async function startQuizSession(
 
 			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'grade' });
 			try {
-				const explanation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer, evaluatorModel);
+				const explanation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer, evaluatorModel, ollamaCaller);
 				currentUserAnswer = userAnswer;
 				currentExplanation = explanation;
 				panel.webview.postMessage({
@@ -133,7 +138,7 @@ export async function startQuizSession(
 		if (message.command === 'requestHint') {
 			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'hint' });
 			try {
-				const hint = await generateHint(selectedCode, currentQuestion);
+				const hint = await generateHint(selectedCode, currentQuestion, ollamaCaller);
 				panel.webview.postMessage({ command: 'showHint', hint });
 			} catch (error) {
 				const friendlyMessage = getUserFriendlyErrorMessage(error);
@@ -149,7 +154,7 @@ export async function startQuizSession(
 		if (message.command === 'newQuestion') {
 			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'next' });
 			try {
-				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
+				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, ollamaCaller, askedQuestions);
 				askedQuestions.push(currentQuestion);
 				if (askedQuestions.length > 12) {
 					askedQuestions.splice(0, askedQuestions.length - 12);
