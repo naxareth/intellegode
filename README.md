@@ -35,10 +35,11 @@ ollama serve
 ```
 
 **3. Pull the Language Model**
-Intellegode requires the Qwen model to operate. Run the following command in your terminal:
+Intellegode requires an LLM to operate. By default it uses Ollama's Qwen model. Run the following command in your terminal:
 ```bash
 ollama pull qwen3.5:4b
 ```
+*(See "Recommended Models" below for alternatives if you have a powerful GPU or want to use OpenAI/Groq).*
 
 **4. Start Your First Session**
 Highlight a snippet of code in your editor and press **Ctrl+Alt+Q** to begin your session.
@@ -46,22 +47,42 @@ Highlight a snippet of code in your editor and press **Ctrl+Alt+Q** to begin you
 ## Architecture
 
 - **VS Code Extension API** (TypeScript)
-- **Ollama** (Local LLM Runtime)
-- **Qwen3.5 4B** (Code Comprehension Model)
+- **Multi-Provider LLM Layer** (Ollama, OpenAI-Compatible Endpoints)
+- **Default Model:** Qwen3.5 4B (Optimized for fast local inference)
 
 ## Configuration
 
 In VS Code, navigate to **File > Preferences > Settings** and search for `Intellegode` to configure:
 
-- **`intellegode.ollamaUrl`**: Base URL for the Ollama server (Default: `http://localhost:11434`)
-- **`intellegode.defaultModel`**: Target model mapping (Default: `qwen3.5:4b`)
+### LLM Provider Settings
+- **`intellegode.provider`**: Choose between `ollama` (default) or `openai-compatible`.
+- **`intellegode.apiBaseUrl`**: Base URL for cloud APIs (e.g., `https://api.openai.com` or `https://api.groq.com/openai/v1`).
+- **`intellegode.defaultModel`**: Target model mapping (e.g., `qwen3.5:4b` or `gpt-4o-mini`).
+
+*Note: For OpenAI-compatible providers, you must set your API key by running the command `Intellegode: Set API Key` from the command palette. Your key is securely stored in your OS keychain.*
+
+### Ollama-Specific Settings
+- **`intellegode.ollamaUrl`**: Base URL for your local Ollama server (Default: `http://localhost:11434`).
 
 ### Developer Environment Variables
 
-When running the extension in development mode, the following flags are supported:
+When running the extension in development mode with Ollama, the following flags are supported:
 
 - `INTELLEGODE_OLLAMA_FORCE_CPU=1` — Forces CPU-only execution (Beneficial for low-VRAM environments)
 - `INTELLEGODE_OLLAMA_REQUEST_TIMEOUT_MS=120000` — Configures the request timeout buffer in milliseconds
+
+## Recommended Models
+
+### Local Inference (Ollama)
+- **4GB VRAM (Laptops):** `qwen3.5:4b` (Default) — Very fast, highly capable for code comprehension.
+- **8GB VRAM:** `qwen3:8b` or `llama3.1:8b` — Better reasoning, slightly slower.
+- **16GB+ VRAM:** `deepseek-r1:14b` — Incredible coding logic, high latency.
+
+### Cloud Inference (OpenAI-Compatible)
+Set `intellegode.provider` to `openai-compatible`.
+- **OpenAI:** URL: `https://api.openai.com` | Model: `gpt-4o-mini` (Fast and extremely cheap).
+- **Groq:** URL: `https://api.groq.com/openai/v1` | Model: `llama-3.1-8b-instant` (Lightning fast).
+- **Together AI:** URL: `https://api.together.xyz/v1` | Model: `meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo`.
 
 ## Troubleshooting
 
