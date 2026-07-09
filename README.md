@@ -115,7 +115,8 @@ Wait a few seconds for the model to cache into memory and try again. Alternative
 
 ## Roadmap
 
-- [x] v1 — Active Quizzer (Highlight -> Question -> Feedback)
-- [x] v0.1.0 — Concept Debt Tracker (Spaced Repetition & History)
-- [ ] v2 — Project Ownership Mapping
-- [ ] v3 — Reconstruction Challenges
+- [x] **v0.0.1** — Active Quizzer (Highlight -> Question -> Feedback)
+- [x] **v0.1.0** — Concept Debt Tracker (Spaced Repetition & History)
+- [x] **v0.2.0** — Multi-Provider LLM Abstraction (Cloud APIs + Local Ollama)
+- [ ] **v0.3.0** — Project Ownership Mapping & File Dependencies
+- [ ] **v1.0.0** — Reconstruction Challenges & Gamified Quizzes

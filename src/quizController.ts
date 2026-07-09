@@ -55,9 +55,12 @@ export async function startQuizSession(
     
     let changelogContent = 'Changelog not found.';
     try {
-        const changelogPath = path.join(context.extensionPath, 'CHANGELOG.md');
-        if (fs.existsSync(changelogPath)) {
-            changelogContent = fs.readFileSync(changelogPath, 'utf8');
+        const changelogPathUpper = path.join(context.extensionPath, 'CHANGELOG.md');
+        const changelogPathLower = path.join(context.extensionPath, 'changelog.md');
+        if (fs.existsSync(changelogPathUpper)) {
+            changelogContent = fs.readFileSync(changelogPathUpper, 'utf8');
+        } else if (fs.existsSync(changelogPathLower)) {
+            changelogContent = fs.readFileSync(changelogPathLower, 'utf8');
         }
     } catch(e) {
         // ignore
