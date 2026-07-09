@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.2.0] - 2026-07-08
+
+### Added
+- **Multi-Provider LLM Support** — Intellegode now supports any OpenAI-compatible API endpoint (OpenAI, Groq, Together, LM Studio, etc.) in addition to local Ollama.
+- **Secure API Key Storage** — Added the `Intellegode: Set API Key` command to securely store cloud API keys in the OS keychain.
+- **Configuration Updates** — Added `intellegode.provider` and `intellegode.apiBaseUrl` settings to easily switch between local and cloud inference.
+
 ## [0.1.0] - 2026-07-04
 
 ### Added
