@@ -1,12 +1,10 @@
 import * as vscode from 'vscode';
 import { startQuizSession } from './quizController';
-import { checkOllamaAvailability } from './ollamaClient';
 import { getProvider } from './providers';
 import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
 import { getConceptStats, getQuizHistory, getStreakData, clearQuizHistory } from './quizHistory';
 import { getDashboardWebviewHtml } from './dashboardWebview';
 
-const EVALUATOR_MODEL = 'qwen3.5:4b';
 const NON_CODE_LANGUAGE_IDS = new Set([
 	'markdown',
 	'plaintext',
@@ -81,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
 				{ enableScripts: true }
 			);
 
-			await startQuizSession(panel, selectedCode, fileCode, EVALUATOR_MODEL, context, languageId, provider);
+			await startQuizSession(panel, selectedCode, fileCode, undefined, context, languageId, provider);
 		} catch (error) {
 			const friendlyMessage = getUserFriendlyErrorMessage(error);
 			const hint = getHintForError(error);

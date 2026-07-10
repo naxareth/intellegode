@@ -21,7 +21,7 @@ export async function startQuizSession(
 	panel: vscode.WebviewPanel,
 	selectedCode: string,
 	fileCodeContext: string,
-	evaluatorModel: string,
+	evaluatorModel: string | undefined,
 	context: vscode.ExtensionContext,
 	languageId: string = 'unknown',
 	provider?: LLMProvider
