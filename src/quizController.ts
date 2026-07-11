@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizService';
-import { QuizWebviewMessage, ConceptTag } from './types';
+import { QuizWebviewMessage, ConceptTag, QuizDifficulty } from './types';
 import { saveQuizRecord, getWeakConceptNudge, getStreakData } from './quizHistory';
 import { getQuizWebviewHtml } from './quizWebview';
 import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
@@ -46,6 +46,7 @@ export async function startQuizSession(
 	let missedItCount = 0;
 	let currentUserAnswer = '';
 	let currentExplanation = '';
+	let currentDifficulty: QuizDifficulty = 'medium';
 	const showSnippetLengthWarning = selectedCode.trim().length > 800;
 
 	// Load extension metadata
@@ -82,7 +83,7 @@ export async function startQuizSession(
 	panel.webview.html = loadingHtml;
 
 	// Generate question in background
-	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, ollamaCaller, askedQuestions);
+	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, ollamaCaller, askedQuestions, currentDifficulty);
 	askedQuestions.push(currentQuestion);
 	await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 
@@ -155,9 +156,12 @@ export async function startQuizSession(
 		}
 
 		if (message.command === 'newQuestion') {
+			if ('difficulty' in message && message.difficulty) {
+				currentDifficulty = message.difficulty;
+			}
 			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'next' });
 			try {
-				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, ollamaCaller, askedQuestions);
+				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, ollamaCaller, askedQuestions, currentDifficulty);
 				askedQuestions.push(currentQuestion);
 				if (askedQuestions.length > 12) {
 					askedQuestions.splice(0, askedQuestions.length - 12);

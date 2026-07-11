@@ -2,7 +2,7 @@
   "name": "intellegode",
   "displayName": "Intellegode",
   "description": "Fight vibe coding. Understand your own code.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "naxareth",
   "icon": "images/logo.png",
   "engines": {

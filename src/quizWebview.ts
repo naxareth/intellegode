@@ -48,6 +48,11 @@ export function getQuizWebviewHtml(
   </div>
   <div class="question-card">
     <div class="question-label">Comprehension Check</div>
+    <div class="difficulty-toggle" id="difficultyToggle">
+      <button class="diff-btn" data-difficulty="easy">Easy</button>
+      <button class="diff-btn active" data-difficulty="medium">Medium</button>
+      <button class="diff-btn" data-difficulty="hard">Hard</button>
+    </div>
     <div class="question-text" id="questionText">${escapeHtml(question)}</div>
   </div>
 

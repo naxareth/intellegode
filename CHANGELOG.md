@@ -1,5 +1,10 @@
 # Change Log
 
+## [0.2.1] - 2026-07-12
+
+### Added
+- Difficulty selector (Easy / Medium / Hard) in the quiz panel to control question depth
+
 ## [0.2.0] - 2026-07-08
 
 ### Added

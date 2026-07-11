@@ -65,6 +65,9 @@ var modalPrevBtn = document.getElementById('modalPrevBtn');
 var modalNextBtn = document.getElementById('modalNextBtn');
 var modalPageCounter = document.getElementById('modalPageCounter');
 
+var difficultyToggle = document.getElementById('difficultyToggle');
+var currentDifficulty = 'medium';
+
 var sessionEntries = [];
 var currentQuestionText = questionText ? questionText.textContent : '';
 var currentUserAnswer = '';
@@ -205,7 +208,7 @@ if (hintBtn) {
 if (newQuestionBtn) {
   newQuestionBtn.addEventListener('click', function () {
     hideValidation();
-    postToExtension({ command: 'newQuestion' });
+    postToExtension({ command: 'newQuestion', difficulty: currentDifficulty });
   });
 }
 
@@ -238,7 +241,7 @@ if (editAnswerBtn) {
 if (nextQuestionBtn) {
   nextQuestionBtn.addEventListener('click', function () {
     hideValidation();
-    postToExtension({ command: 'newQuestion' });
+    postToExtension({ command: 'newQuestion', difficulty: currentDifficulty });
   });
 }
 
@@ -254,6 +257,20 @@ if (confirmResetBtn) {
     closeGenericModal('resetModal');
     hideValidation();
     postToExtension({ command: 'resetQuiz' });
+  });
+}
+
+// Difficulty toggle
+if (difficultyToggle) {
+  difficultyToggle.addEventListener('click', function(e) {
+    var btn = e.target.closest('.diff-btn');
+    if (!btn) return;
+    
+    var allBtns = difficultyToggle.querySelectorAll('.diff-btn');
+    allBtns.forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    
+    currentDifficulty = btn.getAttribute('data-difficulty') || 'medium';
   });
 }
 

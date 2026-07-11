@@ -1,4 +1,5 @@
 import { callOllama } from './ollamaClient';
+import { QuizDifficulty } from './types';
 import {
     buildEvaluatePrompt,
     buildEvaluationRepairPrompt,
@@ -28,7 +29,8 @@ export async function generateQuizQuestion(
     selectedCode: string,
     fileCodeContext: string,
     ollamaCaller: OllamaCaller = callOllama,
-    recentQuestions: string[] = []
+    recentQuestions: string[] = [],
+    difficulty: QuizDifficulty = 'medium'
 ): Promise<string> {
     const seenQuestions = recentQuestions.slice(-QUESTION_HISTORY_WINDOW);
     const selectedSnippetContext = prepareContext(selectedCode, MAX_SELECTED_SNIPPET_CHARS, seenQuestions.length);
@@ -48,7 +50,7 @@ export async function generateQuizQuestion(
 
         // First request can include model cold-start, so keep this timeout more forgiving.
         const first = await ollamaCaller(
-            buildQuizQuestionPrompt(selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen]),
+            buildQuizQuestionPrompt(selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen], difficulty),
             undefined,
             60,
             QUIZ_QUESTION_TIMEOUT_MS,
@@ -91,7 +93,7 @@ export async function generateQuizQuestion(
         }
 
         const repaired = await ollamaCaller(
-            buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen]),
+            buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen], difficulty),
             undefined,
             60,
             QUIZ_QUESTION_REPAIR_TIMEOUT_MS,

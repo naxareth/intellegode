@@ -3,6 +3,8 @@ export type OllamaGenerateResponse = {
 	error?: string;
 };
 
+export type QuizDifficulty = 'easy' | 'medium' | 'hard';
+
 export type OllamaChatResponse = {
 	message?: {
 		content?: string;
@@ -13,7 +15,7 @@ export type OllamaChatResponse = {
 export type QuizWebviewMessage =
 	| { command: 'submitAnswer'; answer?: string }
 	| { command: 'requestHint' }
-	| { command: 'newQuestion' }
+	| { command: 'newQuestion'; difficulty?: QuizDifficulty }
 	| { command: 'resetQuiz' }
 	| { command: 'selfGrade'; result?: 'got-it' | 'missed-it' };
 

@@ -1,11 +1,28 @@
+import { QuizDifficulty } from './types';
+
 export function buildQuizQuestionPrompt(
 	selectedCode: string,
 	fileContext: string,
-	avoidQuestions: string[] = []
+	avoidQuestions: string[] = [],
+	difficulty: QuizDifficulty = 'medium'
 ): string {
 	const lines = [
 		"You are a strict but fair Senior Staff Software Engineer reviewing a Junior Developer's Pull Request.",
 		'Write one code-comprehension question about the selected snippet.',
+		...(difficulty === 'easy' ? [
+			'',
+			'DIFFICULTY: EASY',
+			'- Ask a straightforward question about WHAT the code does or WHAT a specific identifier represents.',
+			'- The answer should be directly readable from the snippet without needing deep reasoning.',
+			'- Example: "What value does `processedCount` track in this loop?"',
+		] : difficulty === 'hard' ? [
+			'',
+			'DIFFICULTY: HARD',
+			'- Ask an advanced architectural or failure-analysis question.',
+			'- Focus on: What would BREAK if this line changed? What subtle tradeoff is being made? What implicit contract does this code depend on?',
+			'- The answer should require understanding the broader system context, not just the snippet.',
+			'- Example: "What invariant would be violated if the error handler here re-threw instead of logging?"',
+		] : []),
 		'',
 		'STRICT RULES:',
 		'- Output ONLY one question and nothing else.',
@@ -51,10 +68,22 @@ export function buildQuizQuestionRepairPrompt(
 	rawOutput: string,
 	selectedCode: string,
 	fileContext: string,
-	avoidQuestions: string[] = []
+	avoidQuestions: string[] = [],
+	difficulty: QuizDifficulty = 'medium'
 ): string {
 	const lines = [
 		'Rewrite the malformed or low-quality output as one valid, insightful question about the selected snippet.',
+		...(difficulty === 'easy' ? [
+			'',
+			'DIFFICULTY: EASY',
+			'- Ask a straightforward question about WHAT the code does or WHAT a specific identifier represents.',
+			'- The answer should be directly readable from the snippet without needing deep reasoning.',
+		] : difficulty === 'hard' ? [
+			'',
+			'DIFFICULTY: HARD',
+			'- Ask an advanced architectural or failure-analysis question.',
+			'- Focus on: What would BREAK if this line changed? What subtle tradeoff is being made?',
+		] : []),
 		'',
 		'QUALITY RULES:',
 		'- Output ONLY one question ending with a question mark.',
