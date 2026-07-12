@@ -58,10 +58,16 @@ export async function startQuizSession(
     try {
         const changelogPathUpper = path.join(context.extensionPath, 'CHANGELOG.md');
         const changelogPathLower = path.join(context.extensionPath, 'changelog.md');
-        if (fs.existsSync(changelogPathUpper)) {
-            changelogContent = fs.readFileSync(changelogPathUpper, 'utf8');
-        } else if (fs.existsSync(changelogPathLower)) {
-            changelogContent = fs.readFileSync(changelogPathLower, 'utf8');
+        try {
+            await fs.promises.access(changelogPathUpper);
+            changelogContent = await fs.promises.readFile(changelogPathUpper, 'utf8');
+        } catch {
+            try {
+                await fs.promises.access(changelogPathLower);
+                changelogContent = await fs.promises.readFile(changelogPathLower, 'utf8');
+            } catch {
+                // neither exists, keep default
+            }
         }
     } catch(e) {
         // ignore
@@ -87,19 +93,9 @@ export async function startQuizSession(
 	askedQuestions.push(currentQuestion);
 	await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 
-	// Update webview with actual question
-	const questionHtml = getQuizWebviewHtml(
-		panel.webview,
-		context.extensionUri,
-		currentQuestion,
-		showSnippetLengthWarning,
-		historyLoadedCount,
-        version,
-        changelogContent,
-        false, // isInitialLoading
-		streakData.currentStreak
-	);
-	panel.webview.html = questionHtml;
+	// Patch question into existing webview instead of full HTML rebuild (avoids white flash)
+	panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
+	panel.webview.postMessage({ command: 'setLoading', loading: false });
 
 	const nudge = getWeakConceptNudge(context);
 	if (nudge) {
