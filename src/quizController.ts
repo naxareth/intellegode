@@ -2,9 +2,11 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { evaluateAnswer, generateHint, generateQuizQuestion } from './quizService';
-import { QuizWebviewMessage } from './types';
+import { QuizWebviewMessage, ConceptTag, QuizDifficulty } from './types';
+import { saveQuizRecord, getWeakConceptNudge, getStreakData } from './quizHistory';
 import { getQuizWebviewHtml } from './quizWebview';
 import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
+import { LLMProvider } from './providers/types';
 
 const MAX_GLOBAL_QUESTION_MEMORY = 8;  // Lighter cross-session history to prevent stale context
 const MAX_SELECTION_QUESTION_MEMORY = 8;  // Stronger per-snippet history for better dedup
@@ -19,9 +21,14 @@ export async function startQuizSession(
 	panel: vscode.WebviewPanel,
 	selectedCode: string,
 	fileCodeContext: string,
-	evaluatorModel: string,
-	context: vscode.ExtensionContext
+	evaluatorModel: string | undefined,
+	context: vscode.ExtensionContext,
+	languageId: string = 'unknown',
+	provider?: LLMProvider
 ): Promise<void> {
+	const ollamaCaller = provider ? async (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number, numCtx?: number) => {
+		return provider.sendPrompt(prompt, { model, maxTokens, timeoutMs, numCtx });
+	} : undefined;
 	const questionState = loadRecentQuestionState(context);
 	const globalRecentQuestions = questionState.globalRecentQuestions;
 	const recentQuestionsBySelection = questionState.recentQuestionsBySelection;
@@ -37,6 +44,9 @@ export async function startQuizSession(
 	const historyLoadedCount = askedQuestions.length;
 	let gotItCount = 0;
 	let missedItCount = 0;
+	let currentUserAnswer = '';
+	let currentExplanation = '';
+	let currentDifficulty: QuizDifficulty = 'medium';
 	const showSnippetLengthWarning = selectedCode.trim().length > 800;
 
 	// Load extension metadata
@@ -46,13 +56,23 @@ export async function startQuizSession(
     
     let changelogContent = 'Changelog not found.';
     try {
-        const changelogPath = path.join(context.extensionPath, 'CHANGELOG.md');
-        if (fs.existsSync(changelogPath)) {
-            changelogContent = fs.readFileSync(changelogPath, 'utf8');
+        const changelogPathUpper = path.join(context.extensionPath, 'CHANGELOG.md');
+        const changelogPathLower = path.join(context.extensionPath, 'changelog.md');
+        try {
+            await fs.promises.access(changelogPathUpper);
+            changelogContent = await fs.promises.readFile(changelogPathUpper, 'utf8');
+        } catch {
+            try {
+                await fs.promises.access(changelogPathLower);
+                changelogContent = await fs.promises.readFile(changelogPathLower, 'utf8');
+            } catch {
+                // neither exists, keep default
+            }
         }
     } catch(e) {
         // ignore
     }
+	const streakData = getStreakData(context);
 
 	// Show loading state immediately so user knows something is happening
 	const loadingHtml = getQuizWebviewHtml(
@@ -63,27 +83,24 @@ export async function startQuizSession(
 		historyLoadedCount,
         version,
         changelogContent,
-        true // isInitialLoading
+        true, // isInitialLoading
+		streakData.currentStreak
 	);
 	panel.webview.html = loadingHtml;
 
 	// Generate question in background
-	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
+	let currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, ollamaCaller, askedQuestions, currentDifficulty);
 	askedQuestions.push(currentQuestion);
 	await recordQuestion(selectionKey, currentQuestion, context, globalRecentQuestions, recentQuestionsBySelection);
 
-	// Update webview with actual question
-	const questionHtml = getQuizWebviewHtml(
-		panel.webview,
-		context.extensionUri,
-		currentQuestion,
-		showSnippetLengthWarning,
-		historyLoadedCount,
-        version,
-        changelogContent,
-        false // isInitialLoading
-	);
-	panel.webview.html = questionHtml;
+	// Patch question into existing webview instead of full HTML rebuild (avoids white flash)
+	panel.webview.postMessage({ command: 'updateQuestion', question: currentQuestion });
+	panel.webview.postMessage({ command: 'setLoading', loading: false });
+
+	const nudge = getWeakConceptNudge(context);
+	if (nudge) {
+		panel.webview.postMessage({ command: 'showNudge', text: nudge });
+	}
 
 	// Route webview events to the quiz service and return UI updates to the panel.
 	panel.webview.onDidReceiveMessage(async (message: QuizWebviewMessage) => {
@@ -99,7 +116,9 @@ export async function startQuizSession(
 
 			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'grade' });
 			try {
-				const explanation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer, evaluatorModel);
+				const explanation = await evaluateAnswer(selectedCode, currentQuestion, userAnswer, evaluatorModel, ollamaCaller);
+				currentUserAnswer = userAnswer;
+				currentExplanation = explanation;
 				panel.webview.postMessage({
 					command: 'showReview',
 					userAnswer,
@@ -119,7 +138,7 @@ export async function startQuizSession(
 		if (message.command === 'requestHint') {
 			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'hint' });
 			try {
-				const hint = await generateHint(selectedCode, currentQuestion);
+				const hint = await generateHint(selectedCode, currentQuestion, ollamaCaller);
 				panel.webview.postMessage({ command: 'showHint', hint });
 			} catch (error) {
 				const friendlyMessage = getUserFriendlyErrorMessage(error);
@@ -133,9 +152,12 @@ export async function startQuizSession(
 		}
 
 		if (message.command === 'newQuestion') {
+			if ('difficulty' in message && message.difficulty) {
+				currentDifficulty = message.difficulty;
+			}
 			panel.webview.postMessage({ command: 'setLoading', loading: true, loadingType: 'next' });
 			try {
-				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, undefined, askedQuestions);
+				currentQuestion = await generateQuizQuestion(selectedCode, fileCodeContext, ollamaCaller, askedQuestions, currentDifficulty);
 				askedQuestions.push(currentQuestion);
 				if (askedQuestions.length > 12) {
 					askedQuestions.splice(0, askedQuestions.length - 12);
@@ -186,6 +208,19 @@ export async function startQuizSession(
 				missedItCount,
 				total: gotItCount + missedItCount
 			});
+
+			if (message.result === 'got-it' || message.result === 'missed-it') {
+				const conceptTags = detectConceptTags(selectedCode);
+				saveQuizRecord(context, {
+					question: currentQuestion,
+					userAnswer: currentUserAnswer,
+					explanation: currentExplanation,
+					selfGrade: message.result,
+					conceptTags,
+					languageId,
+					codeSnippetPreview: selectedCode.slice(0, 200)
+				}).catch(console.error); // Fire and forget with error logging
+			}
 		}
 	});
 }
@@ -245,4 +280,32 @@ async function recordQuestion(
 		globalRecentQuestions,
 		recentQuestionsBySelection
 	} satisfies RecentQuestionState);
+}
+
+function detectConceptTags(code: string): ConceptTag[] {
+	const tags: ConceptTag[] = [];
+
+	if (/\bif\s*\(|\belse\b|\bswitch\s*\(/i.test(code)) {
+		tags.push('conditionals');
+	}
+	if (/\bfor\s*\(|\bwhile\s*\(|\bfor\s+const\b|\bfor\s+let\b/i.test(code)) {
+		tags.push('loops');
+	}
+	if (/\.(map|filter|reduce|flatMap|some|every)\s*\(/i.test(code)) {
+		tags.push('transformations');
+	}
+	if (/\basync\b|\bawait\b|\.then\s*\(/i.test(code)) {
+		tags.push('async-await');
+	}
+	if (/\btry\s*\{|\bcatch\s*\(/i.test(code)) {
+		tags.push('error-handling');
+	}
+	if (/\breturn\b/i.test(code)) {
+		tags.push('return-contracts');
+	}
+	if (/\|\||\?\?|catch\s*\([^)]*\)[\s\S]{0,260}?return\b/i.test(code)) {
+		tags.push('fallback-defaults');
+	}
+
+	return tags.length > 0 ? tags : ['general'];
 }

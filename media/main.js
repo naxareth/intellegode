@@ -51,6 +51,10 @@ var sessionLog = document.getElementById('sessionLog');
 var sessionLogList = document.getElementById('sessionLogList');
 var sessionLogCount = document.getElementById('sessionLogCount');
 
+var nudgeBanner = document.getElementById('nudgeBanner');
+var nudgeText = document.getElementById('nudgeText');
+var nudgeDismiss = document.getElementById('nudgeDismiss');
+
 // Modal Elements
 var modalOverlay = document.getElementById('sessionModal');
 var modalClose = document.getElementById('modalClose');
@@ -60,6 +64,9 @@ var modalExplanation = document.getElementById('modalExplanation');
 var modalPrevBtn = document.getElementById('modalPrevBtn');
 var modalNextBtn = document.getElementById('modalNextBtn');
 var modalPageCounter = document.getElementById('modalPageCounter');
+
+var difficultyToggle = document.getElementById('difficultyToggle');
+var currentDifficulty = 'medium';
 
 var sessionEntries = [];
 var currentQuestionText = questionText ? questionText.textContent : '';
@@ -201,7 +208,7 @@ if (hintBtn) {
 if (newQuestionBtn) {
   newQuestionBtn.addEventListener('click', function () {
     hideValidation();
-    postToExtension({ command: 'newQuestion' });
+    postToExtension({ command: 'newQuestion', difficulty: currentDifficulty });
   });
 }
 
@@ -234,7 +241,7 @@ if (editAnswerBtn) {
 if (nextQuestionBtn) {
   nextQuestionBtn.addEventListener('click', function () {
     hideValidation();
-    postToExtension({ command: 'newQuestion' });
+    postToExtension({ command: 'newQuestion', difficulty: currentDifficulty });
   });
 }
 
@@ -253,6 +260,20 @@ if (confirmResetBtn) {
   });
 }
 
+// Difficulty toggle
+if (difficultyToggle) {
+  difficultyToggle.addEventListener('click', function(e) {
+    var btn = e.target.closest('.diff-btn');
+    if (!btn) return;
+    
+    var allBtns = difficultyToggle.querySelectorAll('.diff-btn');
+    allBtns.forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    
+    currentDifficulty = btn.getAttribute('data-difficulty') || 'medium';
+  });
+}
+
 if (hintClose) {
   hintClose.addEventListener('click', function () {
     if (hintBox) hintBox.classList.remove('visible');
@@ -262,6 +283,12 @@ if (hintClose) {
 if (closeTip) {
   closeTip.addEventListener('click', function () {
     if (selectionTip) selectionTip.classList.add('hidden');
+  });
+}
+
+if (nudgeDismiss) {
+  nudgeDismiss.addEventListener('click', function() {
+    if (nudgeBanner) nudgeBanner.classList.remove('visible');
   });
 }
 
@@ -412,6 +439,11 @@ window.addEventListener('message', function (event) {
   if (msg.command === 'showHint') {
     if (hintText) hintText.textContent = msg.hint || '';
     if (hintBox) hintBox.classList.add('visible');
+  }
+
+  if (msg.command === 'showNudge') {
+    if (nudgeText) nudgeText.textContent = String(msg.text || '');
+    if (nudgeBanner) nudgeBanner.classList.add('visible');
   }
 
   if (msg.command === 'showResult') {

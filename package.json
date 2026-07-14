@@ -2,7 +2,7 @@
   "name": "intellegode",
   "displayName": "Intellegode",
   "description": "Fight vibe coding. Understand your own code.",
-  "version": "0.0.1",
+  "version": "0.2.1",
   "publisher": "naxareth",
   "icon": "images/logo.png",
   "engines": {
@@ -23,6 +23,14 @@
       {
         "command": "intellegode.quizMe",
         "title": "Intellegode: Quiz Me"
+      },
+      {
+        "command": "intellegode.viewProgress",
+        "title": "Intellegode: View Progress"
+      },
+      {
+        "command": "intellegode.setApiKey",
+        "title": "Intellegode: Set API Key (for Cloud LLMs)"
       }
     ],
     "keybindings": [
@@ -31,11 +39,27 @@
         "key": "ctrl+alt+q",
         "mac": "cmd+alt+q",
         "when": "editorFocus && editorTextFocus"
+      },
+      {
+        "command": "intellegode.viewProgress",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d"
       }
     ],
     "configuration": {
       "title": "Intellegode",
       "properties": {
+        "intellegode.provider": {
+          "type": "string",
+          "enum": ["ollama", "openai-compatible"],
+          "default": "ollama",
+          "description": "LLM provider to use. 'ollama' runs locally (default). 'openai-compatible' works with OpenAI, Groq, Together AI, LM Studio, or any /v1/chat/completions endpoint."
+        },
+        "intellegode.apiBaseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com",
+          "description": "Base URL for the OpenAI-compatible API endpoint. Examples: 'https://api.groq.com/openai' for Groq, 'http://localhost:1234' for LM Studio."
+        },
         "intellegode.ollamaUrl": {
           "type": "string",
           "default": "http://localhost:11434",
@@ -44,7 +68,7 @@
         "intellegode.defaultModel": {
           "type": "string",
           "default": "qwen3.5:4b",
-          "description": "Default Ollama model used for Intellegode requests."
+          "description": "LLM model name. For Ollama: try 'qwen3:8b' or 'llama3.1:8b' for better quality. For OpenAI-compatible: use 'gpt-4o-mini', 'llama-3.1-8b-instant', etc."
         }
       }
     }

@@ -1,4 +1,5 @@
 import { callOllama } from './ollamaClient';
+import { QuizDifficulty } from './types';
 import {
     buildEvaluatePrompt,
     buildEvaluationRepairPrompt,
@@ -11,9 +12,9 @@ export type OllamaCaller = (prompt: string, model?: string, maxTokens?: number, 
 export type OllamaCallerWithModel = (prompt: string, model?: string, maxTokens?: number, timeoutMs?: number, numCtx?: number) => Promise<string>;
 
 const QUIZ_QUESTION_TIMEOUT_MS = 90000;
+const QUIZ_QUESTION_REPAIR_TIMEOUT_MS = 60000;
 const HINT_FIRST_ATTEMPT_TIMEOUT_MS = 45000;
 const HINT_SECOND_ATTEMPT_TIMEOUT_MS = 60000;
-const QUIZ_MODEL = 'qwen3.5:4b';
 const MAX_QUESTION_ATTEMPTS = 2;
 const QUESTION_HISTORY_WINDOW = 12; // Increased from 4 to use full recent history for dedup
 const MAX_SELECTED_SNIPPET_CHARS = 2000;
@@ -28,7 +29,8 @@ export async function generateQuizQuestion(
     selectedCode: string,
     fileCodeContext: string,
     ollamaCaller: OllamaCaller = callOllama,
-    recentQuestions: string[] = []
+    recentQuestions: string[] = [],
+    difficulty: QuizDifficulty = 'medium'
 ): Promise<string> {
     const seenQuestions = recentQuestions.slice(-QUESTION_HISTORY_WINDOW);
     const selectedSnippetContext = prepareContext(selectedCode, MAX_SELECTED_SNIPPET_CHARS, seenQuestions.length);
@@ -48,8 +50,8 @@ export async function generateQuizQuestion(
 
         // First request can include model cold-start, so keep this timeout more forgiving.
         const first = await ollamaCaller(
-            buildQuizQuestionPrompt(selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen]),
-            QUIZ_MODEL,
+            buildQuizQuestionPrompt(selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen], difficulty),
+            undefined,
             60,
             QUIZ_QUESTION_TIMEOUT_MS,
             QUESTION_HINT_NUM_CTX
@@ -91,10 +93,10 @@ export async function generateQuizQuestion(
         }
 
         const repaired = await ollamaCaller(
-            buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen]),
-            QUIZ_MODEL,
-            80,
-            QUIZ_QUESTION_TIMEOUT_MS,
+            buildQuizQuestionRepairPrompt(first, selectedSnippetContext, fileContext, [...seenQuestions, ...currentAttemptSeen], difficulty),
+            undefined,
+            60,
+            QUIZ_QUESTION_REPAIR_TIMEOUT_MS,
             QUESTION_HINT_NUM_CTX
         );
         lastRepaired = repaired;
@@ -407,7 +409,7 @@ export async function generateHint(code: string, question: string, ollamaCaller:
     }
 
     try {
-        const first = await ollamaCaller(buildHintPrompt(code, question), QUIZ_MODEL, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS, QUESTION_HINT_NUM_CTX);
+        const first = await ollamaCaller(buildHintPrompt(code, question), undefined, 120, HINT_FIRST_ATTEMPT_TIMEOUT_MS, QUESTION_HINT_NUM_CTX);
         const normalizedFirst = normalizeHintOutput(first);
         if (normalizedFirst) {
             return normalizedFirst;
@@ -415,7 +417,7 @@ export async function generateHint(code: string, question: string, ollamaCaller:
 
         const repaired = await ollamaCaller(
             buildHintRepairPrompt(first, question),
-            QUIZ_MODEL,
+            undefined,
             120,
             HINT_SECOND_ATTEMPT_TIMEOUT_MS,
             QUESTION_HINT_NUM_CTX
@@ -442,7 +444,7 @@ export async function evaluateAnswer(
     code: string,
     question: string,
     _answer: string,
-    model: string = 'qwen3.5:4b',
+    model: string | undefined,
     ollamaCaller: OllamaCallerWithModel = callOllama
 ): Promise<string> {
     const initial = await ollamaCaller(buildEvaluatePrompt(code, question), model, 300, 45000);

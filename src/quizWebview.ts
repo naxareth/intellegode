@@ -8,7 +8,8 @@ export function getQuizWebviewHtml(
     _historyLoadedCount: number = 0,
     version: string = '0.0.1',
     changelogContent: string = '',
-    isInitialLoading: boolean = false
+    isInitialLoading: boolean = false,
+    streakCount: number = 0
 ): string {
 	const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'styles.css'));
 	const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'main.js'));
@@ -36,13 +37,22 @@ export function getQuizWebviewHtml(
     <div class="logo">
       <img src="${logoUri}" alt="Intellegode Logo" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
     </div>
-    <span class="brand">INTELLEGODE <span class="version">v${version}</span></span>
+    <span class="brand">INTELLEGODE <span class="version">v${version}</span>${streakCount > 0 ? ` <span class="streak-badge">${streakCount}d streak</span>` : ''}</span>
   </div>
 
   ${showSnippetLengthWarning ? '<div class="selection-tip" id="selectionTip">Tip: For best results, highlight a single function or small block — not the entire file.<button class="close-tip" id="closeTip" aria-label="Dismiss tip">&times;</button></div>' : ''}
 
+  <div class="nudge-banner" id="nudgeBanner">
+    <span id="nudgeText"></span>
+    <button class="nudge-dismiss" id="nudgeDismiss" aria-label="Dismiss">&times;</button>
+  </div>
   <div class="question-card">
     <div class="question-label">Comprehension Check</div>
+    <div class="difficulty-toggle" id="difficultyToggle">
+      <button class="diff-btn" data-difficulty="easy">Easy</button>
+      <button class="diff-btn active" data-difficulty="medium">Medium</button>
+      <button class="diff-btn" data-difficulty="hard">Hard</button>
+    </div>
     <div class="question-text" id="questionText">${escapeHtml(question)}</div>
   </div>
 
@@ -178,10 +188,17 @@ export function getQuizWebviewHtml(
       <div class="modal-body">
         <div class="markdown-content">
           <h3>How to Setup</h3>
+          <p><strong>Option A: Local Inference (Ollama)</strong></p>
           <ul>
             <li>Ensure you have <a href="https://ollama.com/">Ollama</a> installed on your machine.</li>
             <li>Pull the required model in your terminal: <code>ollama pull qwen3.5:4b</code> (or your configured default).</li>
             <li>Ensure the Ollama server is running (usually runs automatically in the background, or start with <code>ollama serve</code>).</li>
+          </ul>
+          <p><strong>Option B: Cloud Inference (OpenAI, Groq, LM Studio)</strong></p>
+          <ul>
+            <li>Open VS Code Settings and change <code>intellegode.provider</code> to <code>openai-compatible</code>.</li>
+            <li>Run the command <code>Intellegode: Set API Key</code> from the command palette to securely store your token.</li>
+            <li>Set your <code>intellegode.apiBaseUrl</code> and <code>intellegode.defaultModel</code> in settings.</li>
           </ul>
 
           <h3>How to Use</h3>
@@ -252,6 +269,7 @@ function renderSimpleMarkdown(md: string): string {
   
   // Lists
   html = html.replace(/^\-\s+(.*$)/gm, '<li>$1</li>');
+  html = html.replace(/(?:<li>.*?<\/li>\s*)+/g, match => `<ul>${match}</ul>`);
   
   // Line breaks for spacing between paragraphs
   html = html.replace(/\n\n/g, '<br><br>');

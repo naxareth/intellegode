@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { startQuizSession } from './quizController';
-import { checkOllamaAvailability } from './ollamaClient';
+import { getProvider } from './providers';
 import { getUserFriendlyErrorMessage, getHintForError } from './errorMessages';
+import { getConceptStats, getQuizHistory, getStreakData, clearQuizHistory } from './quizHistory';
+import { getDashboardWebviewHtml } from './dashboardWebview';
 
-const EVALUATOR_MODEL = 'qwen3.5:4b';
 const NON_CODE_LANGUAGE_IDS = new Set([
 	'markdown',
 	'plaintext',
@@ -19,20 +20,34 @@ const NON_CODE_LANGUAGE_IDS = new Set([
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Intellegode is now active.');
 
-	// Check Ollama availability on startup
-	checkOllamaAvailability().then((result) => {
+	// Check provider availability on startup
+	const provider = getProvider(context);
+	provider.checkAvailability().then((result) => {
 		if (!result.available) {
-			const message = result.message || 'Ollama is not available.';
-			const learnMoreAction = 'Learn More';
+			const message = result.message || `${provider.name} is not available.`;
+			const learnMoreAction = provider.name === 'ollama' ? 'Learn More' : undefined;
 			
-			vscode.window.showWarningMessage(
-				`Intellegode: ${message}`,
-				learnMoreAction
-			).then((action) => {
-				if (action === learnMoreAction) {
+			const promise = learnMoreAction 
+				? vscode.window.showWarningMessage(`Intellegode: ${message}`, learnMoreAction)
+				: vscode.window.showWarningMessage(`Intellegode: ${message}`);
+				
+			promise.then((action) => {
+				if (action === 'Learn More') {
 					vscode.env.openExternal(vscode.Uri.parse('https://ollama.com/'));
 				}
 			});
+		}
+	});
+
+	const setApiKeyDisposable = vscode.commands.registerCommand('intellegode.setApiKey', async () => {
+		const key = await vscode.window.showInputBox({
+			prompt: 'Enter your API Key (for OpenAI-compatible providers)',
+			password: true,
+			placeHolder: 'sk-...'
+		});
+		if (key) {
+			await context.secrets.store('intellegode.apiKey', key);
+			vscode.window.showInformationMessage('Intellegode: API Key saved securely.');
 		}
 	});
 
@@ -64,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
 				{ enableScripts: true }
 			);
 
-			await startQuizSession(panel, selectedCode, fileCode, EVALUATOR_MODEL, context);
+			await startQuizSession(panel, selectedCode, fileCode, undefined, context, languageId, provider);
 		} catch (error) {
 			const friendlyMessage = getUserFriendlyErrorMessage(error);
 			const hint = getHintForError(error);
@@ -73,7 +88,38 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	const dashboardDisposable = vscode.commands.registerCommand('intellegode.viewProgress', async () => {
+		const conceptStats = getConceptStats(context);
+		const streakData = getStreakData(context);
+		const history = getQuizHistory(context);
+		const recentHistory = history.slice(-10).reverse();
+
+		const extensionId = 'naxareth.intellegode';
+		const ext = vscode.extensions.getExtension(extensionId);
+		const version = ext?.packageJSON?.version ?? '0.0.1';
+
+		const panel = vscode.window.createWebviewPanel(
+			'intellegodeDashboard',
+			'Intellegode: Progress',
+			vscode.ViewColumn.Beside,
+			{ enableScripts: true }
+		);
+
+		panel.webview.html = getDashboardWebviewHtml(
+			panel.webview, context.extensionUri, conceptStats, streakData, recentHistory, version
+		);
+
+		panel.webview.onDidReceiveMessage(async (message: { command: string }) => {
+			if (message.command === 'clearHistory') {
+				await clearQuizHistory(context);
+				panel.webview.postMessage({ command: 'historyCleared' });
+			}
+		});
+	});
+
 	context.subscriptions.push(disposable);
+	context.subscriptions.push(dashboardDisposable);
+	context.subscriptions.push(setApiKeyDisposable);
 }
 
 export function deactivate() {}
